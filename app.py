@@ -37,7 +37,7 @@ class Sale(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     total_amount = db.Column(db.Float, nullable=False)
     payment_mode = db.Column(db.String(20), nullable=False)
-    sale_date = db.Column(db.String(20), nullable=False)  # Format: YYYY-MM-DD
+    sale_date = db.Column(db.String(20), nullable=False)
 
 @app.route('/')
 def home():
@@ -64,21 +64,16 @@ def admin_dashboard():
         drivers = User.query.filter_by(role='driver').all()
         driver_stocks = DriverStock.query.all()
         
-        # Get selected date from filter, default to today's date
         today_str = datetime.now().strftime('%Y-%m-%d')
         selected_date = request.args.get('sale_date', today_str)
-        
-        # Fetch sales for the selected date
         sales = Sale.query.filter_by(sale_date=selected_date).all()
         
-        # Get all unique sale dates for history dropdown/list
         all_dates = db.session.query(Sale.sale_date).distinct().all()
         dates_list = [d[0] for d in all_dates]
         if today_str not in dates_list:
             dates_list.append(today_str)
         dates_list.sort(reverse=True)
 
-        # Item-wise summary for selected date
         item_summaries = []
         for p in products:
             item_sales = [s for s in sales if s.item_name == p.name]
@@ -125,7 +120,6 @@ def driver_dashboard():
         driver_name = session['user']
         driver_stocks = DriverStock.query.filter_by(driver_username=driver_name).all()
         
-        # Show today's sales for the driver
         today_str = datetime.now().strftime('%Y-%m-%d')
         sales = Sale.query.filter_by(driver_username=driver_name, sale_date=today_str).all()
         
@@ -175,6 +169,25 @@ def load_vehicle():
                 d_stock = DriverStock(driver_username=driver_name, item_name=item_name, vehicle_stock=load_qty)
                 db.session.add(d_stock)
             db.session.commit()
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+# Admin Return Stock Receive Route (Gaadi se wapas godown mein stock dalna)
+@app.route('/receive_return', methods=['POST'])
+def receive_return():
+    if 'user' in session and session.get('role') == 'admin':
+        driver_name = request.form['driver_username']
+        item_name = request.form['item_name']
+        return_qty = int(request.form['return_qty'])
+        
+        d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item_name).first()
+        prod = Product.query.filter_by(name=item_name).first()
+        
+        if d_stock and prod and d_stock.vehicle_stock >= return_qty:
+            d_stock.vehicle_stock -= return_qty  # Driver ki gaadi se hata
+            prod.shop_stock += return_qty         # Wapas agency godown mein jud gaya
+            db.session.commit()
+            
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
