@@ -2,27 +2,30 @@
 <html>
 <head>
     <title>Admin Dashboard - Shiv Shankar Vita Milk Agency</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 15px 20px; border-radius: 5px; }
-        .logout-btn { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
-        .container { margin-top: 20px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        body { font-family: Arial, sans-serif; margin: 10px; background-color: #f4f7f6; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 12px 15px; border-radius: 5px; }
+        .logout-btn { background: #e74c3c; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 14px; }
+        .container { margin-top: 15px; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        h3 { margin-top: 0; color: #2c3e50; font-size: 18px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; overflow-x: auto; display: block; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; }
         th { background-color: #f2f2f2; }
-        input, select, button { padding: 8px; margin-right: 10px; margin-bottom: 10px; }
-        button { background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .btn-blue { background: #2980b9; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>Shiv Shankar Vita Milk Agency - Admin Panel</h2>
+        <h2 style="font-size: 16px; margin: 0;">Shiv Shankar Agency</h2>
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
     <!-- Add Product & Plant Stock -->
     <div class="container">
-        <h3>Plant Supply & Product Rates (Add / Update Stock)</h3>
+        <h3>Plant Supply & Product Rates</h3>
         <form action="/add_product" method="POST">
             <input type="text" name="name" placeholder="Item Name (Milk, Dahi...)" required>
             <input type="number" step="0.01" name="purchase_rate" placeholder="Purchase Rate (₹)" required>
@@ -32,7 +35,7 @@
         </form>
 
         <table>
-            <tr><th>Item Name</th><th>Purchase Rate</th><th>Selling Rate</th><th>Shop Stock (Godown)</th><th>Vehicle Stock (Gaadi)</th></tr>
+            <tr><th>Item</th><th>Pur. Rate</th><th>Sell. Rate</th><th>Godown Stock</th><th>Gaadi Stock</th></tr>
             {% for p in products %}
             <tr>
                 <td>{{ p.name }}</td>
@@ -47,19 +50,19 @@
 
     <!-- Load Vehicle for Route -->
     <div class="container">
-        <h3>Load Stock into Vehicle (Gaadi Dispatch)</h3>
+        <h3>Load Stock into Vehicle (Dispatch)</h3>
         <form action="/load_vehicle" method="POST">
             <select name="item_name" required>
                 {% for p in products %}
-                <option value="{{ p.name }}">{{ p.name }} (Available in Shop: {{ p.shop_stock }})</option>
+                <option value="{{ p.name }}">{{ p.name }} (Godown: {{ p.shop_stock }})</option>
                 {% endfor %}
             </select>
-            <input type="number" name="load_qty" placeholder="Quantity to Load in Vehicle" required>
-            <button type="submit" style="background: #2980b9;">Load into Vehicle</button>
+            <input type="number" name="load_qty" placeholder="Quantity to Load" required>
+            <button type="submit" class="btn-blue">Load into Vehicle</button>
         </form>
     </div>
 
-    <!-- Add Driver / Route Section -->
+    <!-- Add Driver & Route Section -->
     <div class="container">
         <h3>Add Driver & Route</h3>
         <form action="/add_driver" method="POST">
@@ -81,7 +84,7 @@
     <div class="container">
         <h3>Live Market Sales & Collection Tally</h3>
         <table>
-            <tr><th>Driver</th><th>Counter / Shop</th><th>Item</th><th>Quantity</th><th>Total Amount</th><th>Payment Mode</th></tr>
+            <tr><th>Driver</th><th>Shop</th><th>Item</th><th>Qty</th><th>Total (₹)</th><th>Mode</th></tr>
             {% for s in sales %}
             <tr><td>{{ s.driver_username }}</td><td>{{ s.counter_name }}</td><td>{{ s.item_name }}</td><td>{{ s.quantity }}</td><td>₹{{ s.total_amount }}</td><td>{{ s.payment_mode }}</td></tr>
             {% endfor %}
