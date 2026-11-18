@@ -20,23 +20,43 @@
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
-    <!-- Add Product Section -->
+    <!-- Add Product & Plant Stock -->
     <div class="container">
-        <h3>Add / Update Products (Milk, Dahi, Paneer, Ghee, etc.)</h3>
+        <h3>Plant Supply & Product Rates (Add / Update Stock)</h3>
         <form action="/add_product" method="POST">
-            <input type="text" name="name" placeholder="Item Name" required>
+            <input type="text" name="name" placeholder="Item Name (Milk, Dahi...)" required>
             <input type="number" step="0.01" name="purchase_rate" placeholder="Purchase Rate (₹)" required>
             <input type="number" step="0.01" name="selling_rate" placeholder="Selling Rate (₹)" required>
-            <input type="number" name="stock" placeholder="Initial Stock" required>
-            <button type="submit">Add Product</button>
+            <input type="number" name="shop_stock" placeholder="Plant / Shop Stock" required>
+            <button type="submit">Save Product</button>
         </form>
 
         <table>
-            <tr><th>Item Name</th><th>Purchase Rate</th><th>Selling Rate</th><th>Current Stock</th></tr>
+            <tr><th>Item Name</th><th>Purchase Rate</th><th>Selling Rate</th><th>Shop Stock (Godown)</th><th>Vehicle Stock (Gaadi)</th></tr>
             {% for p in products %}
-            <tr><td>{{ p.name }}</td><td>₹{{ p.purchase_rate }}</td><td>₹{{ p.selling_rate }}</td><td>{{ p.stock }}</td></tr>
+            <tr>
+                <td>{{ p.name }}</td>
+                <td>₹{{ p.purchase_rate }}</td>
+                <td>₹{{ p.selling_rate }}</td>
+                <td><b>{{ p.shop_stock }}</b></td>
+                <td><b>{{ p.vehicle_stock }}</b></td>
+            </tr>
             {% endfor %}
         </table>
+    </div>
+
+    <!-- Load Vehicle for Route -->
+    <div class="container">
+        <h3>Load Stock into Vehicle (Gaadi Dispatch)</h3>
+        <form action="/load_vehicle" method="POST">
+            <select name="item_name" required>
+                {% for p in products %}
+                <option value="{{ p.name }}">{{ p.name }} (Available in Shop: {{ p.shop_stock }})</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="load_qty" placeholder="Quantity to Load in Vehicle" required>
+            <button type="submit" style="background: #2980b9;">Load into Vehicle</button>
+        </form>
     </div>
 
     <!-- Add Driver / Route Section -->
@@ -49,7 +69,6 @@
             <button type="submit">Create Driver ID</button>
         </form>
 
-        <h3>Registered Drivers</h3>
         <table>
             <tr><th>Driver Username</th><th>Assigned Route</th></tr>
             {% for d in drivers %}
@@ -60,7 +79,7 @@
 
     <!-- Sales & Collection Summary -->
     <div class="container">
-        <h3>Live Sales & Collection Tally</h3>
+        <h3>Live Market Sales & Collection Tally</h3>
         <table>
             <tr><th>Driver</th><th>Counter / Shop</th><th>Item</th><th>Quantity</th><th>Total Amount</th><th>Payment Mode</th></tr>
             {% for s in sales %}

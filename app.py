@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
-import os
 
 app = Flask(__name__)
 app.secret_key = 'shivshankar_secret_key'
@@ -23,7 +22,8 @@ class Product(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False)
     purchase_rate = db.Column(db.Float, nullable=False, default=0.0)
     selling_rate = db.Column(db.Float, nullable=False, default=0.0)
-    stock = db.Column(db.Integer, nullable=False, default=0)
+    shop_stock = db.Column(db.Integer, nullable=False, default=0)      # Dukaan par rakha maal
+    vehicle_stock = db.Column(db.Integer, nullable=False, default=0)   # Gaadi mein load hua maal
 
 # 3. Counter / Shop Model
 class Counter(db.Model):
@@ -41,7 +41,6 @@ class Sale(db.Model):
     total_amount = db.Column(db.Float, nullable=False)
     payment_mode = db.Column(db.String(20), nullable=False)  # Cash, UPI, Udhar
 
-# Routes
 @app.route('/')
 def home():
     return redirect(url_for('login'))
@@ -78,21 +77,42 @@ def admin_dashboard():
 def driver_dashboard():
     if 'user' in session and session.get('role') == 'driver':
         products = Product.query.all()
-        counters = Counter.query.all()
-        return render_template('driver_dashboard.html', products=products, counters=counters)
+        return render_template('driver_dashboard.html', products=products)
     return redirect(url_for('login'))
 
+# Add or Update Product & Rates
 @app.route('/add_product', methods=['POST'])
 def add_product():
     if 'user' in session and session.get('role') == 'admin':
         name = request.form['name']
         p_rate = float(request.form['purchase_rate'])
         s_rate = float(request.form['selling_rate'])
-        stock = int(request.form['stock'])
+        shop_stock = int(request.form['shop_stock'])
         
-        prod = Product(name=name, purchase_rate=p_rate, selling_rate=s_rate, stock=stock)
-        db.session.add(prod)
+        prod = Product.query.filter_by(name=name).first()
+        if prod:
+            prod.purchase_rate = p_rate
+            prod.selling_rate = s_rate
+            prod.shop_stock += shop_stock
+        else:
+            prod = Product(name=name, purchase_rate=p_rate, selling_rate=s_rate, shop_stock=shop_stock)
+            db.session.add(prod)
         db.session.commit()
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+# Load Stock into Driver Vehicle for Route
+@app.route('/load_vehicle', methods=['POST'])
+def load_vehicle():
+    if 'user' in session and session.get('role') == 'admin':
+        item_name = request.form['item_name']
+        load_qty = int(request.form['load_qty'])
+        
+        prod = Product.query.filter_by(name=item_name).first()
+        if prod and prod.shop_stock >= load_qty:
+            prod.shop_stock -= load_qty       # Dukaan ke stock se ghata
+            prod.vehicle_stock += load_qty    # Gaadi ke stock mein joda
+            db.session.commit()
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
@@ -118,11 +138,14 @@ def record_sale():
         mode = request.form['payment_mode']
         
         prod = Product.query.filter_by(name=item).first()
-        total = qty * prod.selling_rate if prod else 0
-        
-        sale = Sale(driver_username=session['user'], counter_name=counter, item_name=item, quantity=qty, total_amount=total, payment_mode=mode)
-        db.session.add(sale)
-        db.session.commit()
+        if prod and prod.vehicle_stock >= qty:
+            prod.vehicle_stock -= qty  # Gaadi ke stock se bik gaya
+            total = qty * prod.selling_rate
+            
+            sale = Sale(driver_username=session['user'], counter_name=counter, item_name=item, quantity=qty, total_amount=total, payment_mode=mode)
+            db.session.add(sale)
+            db.session.commit()
+            
         return redirect(url_for('driver_dashboard'))
     return redirect(url_for('login'))
 
