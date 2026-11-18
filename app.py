@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'shivshankar_secret_key'
@@ -36,6 +37,7 @@ class Sale(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     total_amount = db.Column(db.Float, nullable=False)
     payment_mode = db.Column(db.String(20), nullable=False)
+    sale_date = db.Column(db.String(20), nullable=False)  # Format: YYYY-MM-DD
 
 @app.route('/')
 def home():
@@ -61,17 +63,27 @@ def admin_dashboard():
         products = Product.query.all()
         drivers = User.query.filter_by(role='driver').all()
         driver_stocks = DriverStock.query.all()
-        sales = Sale.query.all()
         
-        # Calculate Item-wise total summary for Admin
+        # Get selected date from filter, default to today's date
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        selected_date = request.args.get('sale_date', today_str)
+        
+        # Fetch sales for the selected date
+        sales = Sale.query.filter_by(sale_date=selected_date).all()
+        
+        # Get all unique sale dates for history dropdown/list
+        all_dates = db.session.query(Sale.sale_date).distinct().all()
+        dates_list = [d[0] for d in all_dates]
+        if today_str not in dates_list:
+            dates_list.append(today_str)
+        dates_list.sort(reverse=True)
+
+        # Item-wise summary for selected date
         item_summaries = []
         for p in products:
-            # Total sold quantity across all drivers for this item
             item_sales = [s for s in sales if s.item_name == p.name]
             total_sold_qty = sum(s.quantity for s in item_sales)
             total_revenue = sum(s.total_amount for s in item_sales)
-            
-            # Total remaining in all drivers vehicles for this item
             total_vehicle_qty = sum(ds.vehicle_stock for ds in driver_stocks if ds.item_name == p.name)
             
             item_summaries.append({
@@ -103,7 +115,8 @@ def admin_dashboard():
             })
             
         return render_template('admin_dashboard.html', products=products, drivers=drivers, 
-                             item_summaries=item_summaries, driver_summaries=driver_summaries)
+                             item_summaries=item_summaries, driver_summaries=driver_summaries,
+                             selected_date=selected_date, dates_list=dates_list)
     return redirect(url_for('login'))
 
 @app.route('/driver')
@@ -111,14 +124,17 @@ def driver_dashboard():
     if 'user' in session and session.get('role') == 'driver':
         driver_name = session['user']
         driver_stocks = DriverStock.query.filter_by(driver_username=driver_name).all()
-        sales = Sale.query.filter_by(driver_username=driver_name).all()
+        
+        # Show today's sales for the driver
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        sales = Sale.query.filter_by(driver_username=driver_name, sale_date=today_str).all()
         
         total_cash = sum(s.total_amount for s in sales if s.payment_mode == 'Cash')
         total_upi = sum(s.total_amount for s in sales if s.payment_mode == 'UPI')
         total_udhar = sum(s.total_amount for s in sales if s.payment_mode == 'Udhar')
         
         return render_template('driver_dashboard.html', driver_stocks=driver_stocks, sales=sales,
-                             total_cash=total_cash, total_upi=total_upi, total_udhar=total_udhar)
+                             today_date=today_str, total_cash=total_cash, total_upi=total_upi, total_udhar=total_udhar)
     return redirect(url_for('login'))
 
 @app.route('/add_product', methods=['POST'])
@@ -183,6 +199,7 @@ def record_sale():
         item = request.form['item_name']
         qty = int(request.form['quantity'])
         mode = request.form['payment_mode']
+        today_str = datetime.now().strftime('%Y-%m-%d')
         
         d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item).first()
         prod = Product.query.filter_by(name=item).first()
@@ -191,7 +208,7 @@ def record_sale():
             d_stock.vehicle_stock -= qty
             total = qty * prod.selling_rate
             
-            sale = Sale(driver_username=driver_name, counter_name=counter, item_name=item, quantity=qty, total_amount=total, payment_mode=mode)
+            sale = Sale(driver_username=driver_name, counter_name=counter, item_name=item, quantity=qty, total_amount=total, payment_mode=mode, sale_date=today_str)
             db.session.add(sale)
             db.session.commit()
             
