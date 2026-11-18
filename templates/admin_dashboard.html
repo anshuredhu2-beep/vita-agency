@@ -15,11 +15,12 @@
         input, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .btn-blue { background: #2980b9; }
+        .driver-box { background: #f9ebc8; padding: 12px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #f39c12; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="font-size: 16px; margin: 0;">Shiv Shankar Agency</h2>
+        <h2 style="font-size: 16px; margin: 0;">Shiv Shankar Agency (Admin)</h2>
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
@@ -98,15 +99,30 @@
         </table>
     </div>
 
-    <!-- Sales & Collection Tally -->
+    <!-- Driver-wise Separate Sales & Collection Tally -->
     <div class="container">
-        <h3>Live Market Sales & Collection Tally (Selling Rate Wise)</h3>
-        <table>
-            <tr><th>Driver</th><th>Shop</th><th>Item</th><th>Qty</th><th>Total (₹)</th><th>Mode</th></tr>
-            {% for s in sales %}
-            <tr><td>{{ s.driver_username }}</td><td>{{ s.counter_name }}</td><td>{{ s.item_name }}</td><td>{{ s.quantity }}</td><td>₹{{ s.total_amount }}</td><td>{{ s.payment_mode }}</td></tr>
-            {% endfor %}
-        </table>
+        <h3>Driver-wise Sales & Collection (Route Wise Breakdown)</h3>
+        {% for ds in driver_summaries %}
+        <div class="driver-box">
+            <h4 style="margin: 0 0 10px 0; color: #d35400;">🚚 Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
+            <p style="margin: 3px 0;">💵 Cash: <b>₹{{ ds.cash }}</b> | 📱 UPI: <b>₹{{ ds.upi }}</b> | 📒 Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
+            
+            <table>
+                <tr><th>Shop</th><th>Item</th><th>Qty</th><th>Total</th><th>Mode</th></tr>
+                {% for s in ds.sales %}
+                <tr>
+                    <td>{{ s.counter_name }}</td>
+                    <td>{{ s.item_name }}</td>
+                    <td>{{ s.quantity }}</td>
+                    <td>₹{{ s.total_amount }}</td>
+                    <td><b>{{ s.payment_mode }}</b></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align: center; color: #77f;">No sales recorded yet for this driver.</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endfor %}
     </div>
 </body>
 </html>
