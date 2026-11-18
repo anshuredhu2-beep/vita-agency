@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Driver App - Shiv Shankar Agency</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #e67e22; color: white; padding: 15px 20px; border-radius: 5px; }
+        .logout-btn { background: #c0392b; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
+        .container { margin-top: 20px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input, select, button { padding: 10px; margin-right: 10px; margin-bottom: 15px; width: 100%; max-width: 300px; display: block; }
+        button { background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Driver Route Panel</h2>
+        <a href="/logout" class="logout-btn">Logout</a>
+    </div>
+
+    <div class="container">
+        <h3>Record Counter Sale / Delivery</h3>
+        <form action="/record_sale" method="POST">
+            <label>Counter / Shop Name:</label>
+            <input type="text" name="counter_name" placeholder="Enter Shop / Counter Name" required>
+
+            <label>Select Item:</label>
+            <select name="item_name" required>
+                {% for p in products %}
+                <option value="{{ p.name }}">{{ p.name }} (Rate: ₹{{ p.selling_rate }})</option>
+                {% endfor %}
+            </select>
+
+            <label>Quantity Sold:</label>
+            <input type="number" name="quantity" placeholder="Enter Quantity" required>
+
+            <label>Payment Mode:</label>
+            <select name="payment_mode" required>
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="Udhar">Udhar (Credit)</option>
+            </select>
+
+            <button type="submit">Submit Sale</button>
+        </form>
+    </div>
+</body>
+</html>
