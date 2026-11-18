@@ -15,7 +15,7 @@
         input, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .btn-blue { background: #2980b9; }
-        .driver-box { background: #f9ebc8; padding: 12px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #f39c12; }
+        .driver-box { background: #fdfefe; padding: 12px; border-radius: 5px; margin-bottom: 15px; border: 2px solid #2980b9; }
     </style>
 </head>
 <body>
@@ -24,31 +24,45 @@
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
-    <!-- Add Product & Godown Stock -->
+    <!-- Add Product & Item-wise Stock Summary -->
     <div class="container">
-        <h3>Plant Supply & Product Rates</h3>
+        <h3>Plant Supply & Item-wise Stock Tally</h3>
         <form action="/add_product" method="POST">
             <input type="text" name="name" placeholder="Item Name (Milk, Dahi...)" required>
             <input type="number" step="0.01" name="purchase_rate" placeholder="Purchase Rate (₹)" required>
             <input type="number" step="0.01" name="selling_rate" placeholder="Selling Rate (₹)" required>
-            <input type="number" name="shop_stock" placeholder="Godown Stock" required>
-            <button type="submit">Save Product</button>
+            <input type="number" name="shop_stock" placeholder="Godown Stock to Add" required>
+            <button type="submit">Save Product / Add Stock</button>
         </form>
 
+        <h4 style="margin-top: 15px; color: #2c3e50;">Item Wise Complete Ledger:</h4>
         <table>
-            <tr><th>Item</th><th>Pur. Rate</th><th>Sell. Rate</th><th>Godown Stock</th></tr>
-            {% for p in products %}
             <tr>
-                <td>{{ p.name }}</td>
-                <td>₹{{ p.purchase_rate }}</td>
-                <td>₹{{ p.selling_rate }}</td>
-                <td><b>{{ p.shop_stock }}</b></td>
+                <th>Item Name</th>
+                <th>Pur. Rate</th>
+                <th>Sell. Rate</th>
+                <th>Godown Stock</th>
+                <th>Vehicle Stock</th>
+                <th>Total Sold Qty</th>
+                <th>Total Revenue (₹)</th>
             </tr>
+            {% for item in item_summaries %}
+            <tr>
+                <td><b>{{ item.name }}</b></td>
+                <td>₹{{ item.purchase_rate }}</td>
+                <td>₹{{ item.selling_rate }}</td>
+                <td style="color: #2980b9;"><b>{{ item.godown_stock }}</b></td>
+                <td style="color: #e67e22;"><b>{{ item.vehicle_stock }}</b></td>
+                <td style="color: #27ae60;"><b>{{ item.sold_qty }}</b></td>
+                <td><b>₹{{ item.revenue }}</b></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7">No items added yet.</td></tr>
             {% endfor %}
         </table>
     </div>
 
-    <!-- Assign Stock to Specific Driver -->
+    <!-- Assign Stock to Driver -->
     <div class="container">
         <h3>Load Stock into Driver Vehicle</h3>
         <form action="/load_vehicle" method="POST">
@@ -71,14 +85,6 @@
             
             <button type="submit" class="btn-blue">Assign to Driver Vehicle</button>
         </form>
-
-        <h4 style="margin-top: 15px;">Drivers Current Loaded Stock:</h4>
-        <table>
-            <tr><th>Driver</th><th>Item</th><th>Loaded Stock</th></tr>
-            {% for ds in driver_stocks %}
-            <tr><td>{{ ds.driver_username }}</td><td>{{ ds.item_name }}</td><td><b>{{ ds.vehicle_stock }}</b></td></tr>
-            {% endfor %}
-        </table>
     </div>
 
     <!-- Add Driver & Route -->
@@ -99,16 +105,27 @@
         </table>
     </div>
 
-    <!-- Driver-wise Separate Sales & Collection Tally -->
+    <!-- Driver-wise Return Stock & Sales Summary -->
     <div class="container">
-        <h3>Driver-wise Sales & Collection (Route Wise Breakdown)</h3>
+        <h3>Driver-wise Evening Return & Sales Summary</h3>
         {% for ds in driver_summaries %}
         <div class="driver-box">
-            <h4 style="margin: 0 0 10px 0; color: #d35400;">🚚 Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
-            <p style="margin: 3px 0;">💵 Cash: <b>₹{{ ds.cash }}</b> | 📱 UPI: <b>₹{{ ds.upi }}</b> | 📒 Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
+            <h4 style="margin: 0 0 8px 0; color: #2980b9;">🚚 Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
+            <p style="margin: 3px 0 10px 0;">💵 Cash: <b>₹{{ ds.cash }}</b> | 📱 UPI: <b>₹{{ ds.upi }}</b> | 📒 Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
             
+            <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi):</h5>
             <table>
-                <tr><th>Shop</th><th>Item</th><th>Qty</th><th>Total</th><th>Mode</th></tr>
+                <tr><th>Item</th><th>Remaining Stock in Vehicle</th></tr>
+                {% for st in ds.stock %}
+                <tr><td>{{ st.item_name }}</td><td><b>{{ st.vehicle_stock }}</b></td></tr>
+                {% else %}
+                <tr><td colspan="2">No stock loaded or remaining.</td></tr>
+                {% endfor %}
+            </table>
+
+            <h5 style="margin: 10px 0 5px 0; color: #d35400;">Counter-wise Sales History:</h5>
+            <table>
+                <tr><th>Shop</th><th>Item</th><th>Qty Sold</th><th>Total (₹)</th><th>Mode</th></tr>
                 {% for s in ds.sales %}
                 <tr>
                     <td>{{ s.counter_name }}</td>
@@ -118,7 +135,7 @@
                     <td><b>{{ s.payment_mode }}</b></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" style="text-align: center; color: #77f;">No sales recorded yet for this driver.</td></tr>
+                <tr><td colspan="5">No sales recorded yet.</td></tr>
                 {% endfor %}
             </table>
         </div>

@@ -63,24 +63,47 @@ def admin_dashboard():
         driver_stocks = DriverStock.query.all()
         sales = Sale.query.all()
         
-        # Calculate summary per driver for Admin
+        # Calculate Item-wise total summary for Admin
+        item_summaries = []
+        for p in products:
+            # Total sold quantity across all drivers for this item
+            item_sales = [s for s in sales if s.item_name == p.name]
+            total_sold_qty = sum(s.quantity for s in item_sales)
+            total_revenue = sum(s.total_amount for s in item_sales)
+            
+            # Total remaining in all drivers vehicles for this item
+            total_vehicle_qty = sum(ds.vehicle_stock for ds in driver_stocks if ds.item_name == p.name)
+            
+            item_summaries.append({
+                'name': p.name,
+                'purchase_rate': p.purchase_rate,
+                'selling_rate': p.selling_rate,
+                'godown_stock': p.shop_stock,
+                'vehicle_stock': total_vehicle_qty,
+                'sold_qty': total_sold_qty,
+                'revenue': total_revenue
+            })
+        
         driver_summaries = []
         for d in drivers:
             d_sales = [s for s in sales if s.driver_username == d.username]
+            d_stock = [ds for ds in driver_stocks if ds.driver_username == d.username]
             d_cash = sum(s.total_amount for s in d_sales if s.payment_mode == 'Cash')
             d_upi = sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI')
             d_udhar = sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar')
+            
             driver_summaries.append({
                 'username': d.username,
                 'route_name': d.route_name,
                 'cash': d_cash,
                 'upi': d_upi,
                 'udhar': d_udhar,
-                'sales': d_sales
+                'sales': d_sales,
+                'stock': d_stock
             })
             
         return render_template('admin_dashboard.html', products=products, drivers=drivers, 
-                             driver_stocks=driver_stocks, driver_summaries=driver_summaries)
+                             item_summaries=item_summaries, driver_summaries=driver_summaries)
     return redirect(url_for('login'))
 
 @app.route('/driver')
