@@ -2,31 +2,52 @@
 <html>
 <head>
     <title>Driver App - Shiv Shankar Agency</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #e67e22; color: white; padding: 15px 20px; border-radius: 5px; }
-        .logout-btn { background: #c0392b; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
-        .container { margin-top: 20px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, select, button { padding: 10px; margin-right: 10px; margin-bottom: 15px; width: 100%; max-width: 300px; display: block; }
-        button { background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        body { font-family: Arial, sans-serif; margin: 10px; background-color: #f4f7f6; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #e67e22; color: white; padding: 12px 15px; border-radius: 5px; }
+        .logout-btn { background: #c0392b; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 14px; }
+        .container { margin-top: 15px; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h3 { margin-top: 0; color: #d35400; font-size: 18px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; overflow-x: auto; display: block; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; }
+        th { background-color: #f2f2f2; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .summary-box { background: #e8f8f5; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #a3e4d7; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>Driver Route Panel</h2>
+        <h2 style="font-size: 16px; margin: 0;">Driver Panel ({{ session['user'] }})</h2>
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
+    <!-- Driver's Assigned Vehicle Stock -->
     <div class="container">
-        <h3>Record Counter Sale / Delivery</h3>
+        <h3>Aapki Gaadi ka Bacha Hua Stock</h3>
+        <table>
+            <tr><th>Item</th><th>Remaining Stock</th></tr>
+            {% for ds in driver_stocks %}
+            <tr>
+                <td>{{ ds.item_name }}</td>
+                <td><b style="color: #27ae60; font-size: 16px;">{{ ds.vehicle_stock }}</b></td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- Record Sale Form -->
+    <div class="container">
+        <h3>Record Counter Sale</h3>
         <form action="/record_sale" method="POST">
-            <label>Counter / Shop Name:</label>
-            <input type="text" name="counter_name" placeholder="Enter Shop / Counter Name" required>
+            <label>Shop / Counter Name:</label>
+            <input type="text" name="counter_name" placeholder="Enter Shop Name" required>
 
             <label>Select Item:</label>
             <select name="item_name" required>
-                {% for p in products %}
-                <option value="{{ p.name }}">{{ p.name }} (Rate: ₹{{ p.selling_rate }})</option>
+                {% for ds in driver_stocks %}
+                <option value="{{ ds.item_name }}">{{ ds.item_name }} (Available: {{ ds.vehicle_stock }})</option>
                 {% endfor %}
             </select>
 
@@ -35,13 +56,37 @@
 
             <label>Payment Mode:</label>
             <select name="payment_mode" required>
-                <option value="Cash">Cash</option>
-                <option value="UPI">UPI</option>
+                <option value="Cash">Cash (Nagad)</option>
+                <option value="UPI">UPI (Online)</option>
                 <option value="Udhar">Udhar (Credit)</option>
             </select>
 
             <button type="submit">Submit Sale</button>
         </form>
+    </div>
+
+    <!-- Collection Summary -->
+    <div class="container">
+        <h3>Aaj ki Collection Summary</h3>
+        <div class="summary-box">
+            <p style="margin: 5px 0;">💵 <b>Total Cash:</b> ₹{{ total_cash }}</p>
+            <p style="margin: 5px 0;">📱 <b>Total UPI:</b> ₹{{ total_upi }}</p>
+            <p style="margin: 5px 0; color: #c0392b;">📒 <b>Total Udhar:</b> ₹{{ total_udhar }}</p>
+        </div>
+
+        <h3>Aapki Entries (History)</h3>
+        <table>
+            <tr><th>Shop</th><th>Item</th><th>Qty</th><th>Total</th><th>Mode</th></tr>
+            {% for s in sales %}
+            <tr>
+                <td>{{ s.counter_name }}</td>
+                <td>{{ s.item_name }}</td>
+                <td>{{ s.quantity }}</td>
+                <td>₹{{ s.total_amount }}</td>
+                <td><b>{{ s.payment_mode }}</b></td>
+            </tr>
+            {% endfor %}
+        </table>
     </div>
 </body>
 </html>
