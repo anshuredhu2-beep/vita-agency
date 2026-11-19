@@ -9,12 +9,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vita_agency.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'admin' or 'driver'
     route_name = db.Column(db.String(80), nullable=True)
+
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -23,11 +25,13 @@ class Product(db.Model):
     selling_rate = db.Column(db.Float, nullable=False, default=0.0)
     shop_stock = db.Column(db.Integer, nullable=False, default=0)
 
+
 class DriverStock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     driver_username = db.Column(db.String(80), nullable=False)
     item_name = db.Column(db.String(80), nullable=False)
     vehicle_stock = db.Column(db.Integer, nullable=False, default=0)
+
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,35 +43,37 @@ class Sale(db.Model):
     payment_mode = db.Column(db.String(20), nullable=False)
     sale_date = db.Column(db.String(20), nullable=False)
 
+
 @app.route('/')
 def home():
     return redirect(url_for('login'))
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
         user = User.query.filter_by(username=username, password=password).first()
         if user:
             session['user'] = user.username
             session['role'] = user.role
             return redirect(url_for('admin_dashboard') if user.role == 'admin' else url_for('driver_dashboard'))
-        else:
-            return "Invalid Username or Password", 401
+        return "Invalid Username or Password", 401
     return render_template('login.html')
+
 
 @app.route('/admin')
 def admin_dashboard():
     if 'user' in session and session.get('role') == 'admin':
-        products = Product.query.all()
+        products = Product.query.order_by(Product.name.asc()).all()
         drivers = User.query.filter_by(role='driver').all()
         driver_stocks = DriverStock.query.all()
-        
+
         today_str = datetime.now().strftime('%Y-%m-%d')
         selected_date = request.args.get('sale_date', today_str)
         sales = Sale.query.filter_by(sale_date=selected_date).all()
-        
+
         all_dates = db.session.query(Sale.sale_date).distinct().all()
         dates_list = [d[0] for d in all_dates]
         if today_str not in dates_list:
@@ -80,7 +86,7 @@ def admin_dashboard():
             total_sold_qty = sum(s.quantity for s in item_sales)
             total_revenue = sum(s.total_amount for s in item_sales)
             total_vehicle_qty = sum(ds.vehicle_stock for ds in driver_stocks if ds.item_name == p.name)
-            
+
             item_summaries.append({
                 'name': p.name,
                 'purchase_rate': p.purchase_rate,
@@ -90,7 +96,7 @@ def admin_dashboard():
                 'sold_qty': total_sold_qty,
                 'revenue': total_revenue
             })
-        
+
         driver_summaries = []
         for d in drivers:
             d_sales = [s for s in sales if s.driver_username == d.username]
@@ -98,7 +104,7 @@ def admin_dashboard():
             d_cash = sum(s.total_amount for s in d_sales if s.payment_mode == 'Cash')
             d_upi = sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI')
             d_udhar = sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar')
-            
+
             driver_summaries.append({
                 'username': d.username,
                 'route_name': d.route_name,
@@ -108,48 +114,77 @@ def admin_dashboard():
                 'sales': d_sales,
                 'stock': d_stock
             })
-            
-        return render_template('admin_dashboard.html', products=products, drivers=drivers, 
-                             item_summaries=item_summaries, driver_summaries=driver_summaries,
-                             selected_date=selected_date, dates_list=dates_list)
+
+        return render_template(
+            'admin_dashboard.html',
+            products=products,
+            drivers=drivers,
+            item_summaries=item_summaries,
+            driver_summaries=driver_summaries,
+            selected_date=selected_date,
+            dates_list=dates_list
+        )
     return redirect(url_for('login'))
+
 
 @app.route('/driver')
 def driver_dashboard():
     if 'user' in session and session.get('role') == 'driver':
         driver_name = session['user']
         driver_stocks = DriverStock.query.filter_by(driver_username=driver_name).all()
-        
+
         today_str = datetime.now().strftime('%Y-%m-%d')
         sales = Sale.query.filter_by(driver_username=driver_name, sale_date=today_str).all()
-        
+
+        saved_counters_rows = db.session.query(Sale.counter_name).filter_by(driver_username=driver_name).distinct().all()
+        saved_counters = sorted({c[0].strip() for c in saved_counters_rows if c[0] and c[0].strip()})
+
         total_cash = sum(s.total_amount for s in sales if s.payment_mode == 'Cash')
         total_upi = sum(s.total_amount for s in sales if s.payment_mode == 'UPI')
         total_udhar = sum(s.total_amount for s in sales if s.payment_mode == 'Udhar')
-        
-        return render_template('driver_dashboard.html', driver_stocks=driver_stocks, sales=sales,
-                             today_date=today_str, total_cash=total_cash, total_upi=total_upi, total_udhar=total_udhar)
+
+        return render_template(
+            'driver_dashboard.html',
+            driver_stocks=driver_stocks,
+            sales=sales,
+            saved_counters=saved_counters,
+            today_date=today_str,
+            total_cash=total_cash,
+            total_upi=total_upi,
+            total_udhar=total_udhar
+        )
     return redirect(url_for('login'))
+
 
 @app.route('/add_product', methods=['POST'])
 def add_product():
     if 'user' in session and session.get('role') == 'admin':
-        name = request.form['name']
-        p_rate = float(request.form['purchase_rate'])
-        s_rate = float(request.form['selling_rate'])
+        selected_item = request.form.get('saved_item', '').strip()
+        new_item = request.form.get('name', '').strip()
+        name = new_item if (selected_item == '__NEW__' or new_item) else selected_item
         shop_stock = int(request.form['shop_stock'])
-        
-        prod = Product.query.filter_by(name=name).first()
-        if prod:
-            prod.purchase_rate = p_rate
-            prod.selling_rate = s_rate
-            prod.shop_stock += shop_stock
-        else:
-            prod = Product(name=name, purchase_rate=p_rate, selling_rate=s_rate, shop_stock=shop_stock)
-            db.session.add(prod)
-        db.session.commit()
+
+        if name:
+            prod = Product.query.filter(db.func.lower(Product.name) == name.lower()).first()
+            p_rate_raw = request.form.get('purchase_rate', '').strip()
+            s_rate_raw = request.form.get('selling_rate', '').strip()
+
+            if prod:
+                if p_rate_raw:
+                    prod.purchase_rate = float(p_rate_raw)
+                if s_rate_raw:
+                    prod.selling_rate = float(s_rate_raw)
+                prod.shop_stock += shop_stock
+            else:
+                p_rate = float(p_rate_raw) if p_rate_raw else 0.0
+                s_rate = float(s_rate_raw) if s_rate_raw else 0.0
+                prod = Product(name=name, purchase_rate=p_rate, selling_rate=s_rate, shop_stock=shop_stock)
+                db.session.add(prod)
+
+            db.session.commit()
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
+
 
 @app.route('/load_vehicle', methods=['POST'])
 def load_vehicle():
@@ -157,11 +192,11 @@ def load_vehicle():
         driver_name = request.form['driver_username']
         item_name = request.form['item_name']
         load_qty = int(request.form['load_qty'])
-        
+
         prod = Product.query.filter_by(name=item_name).first()
-        if prod and prod.shop_stock >= load_qty:
+        if prod and load_qty > 0 and prod.shop_stock >= load_qty:
             prod.shop_stock -= load_qty
-            
+
             d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item_name).first()
             if d_stock:
                 d_stock.vehicle_stock += load_qty
@@ -172,66 +207,82 @@ def load_vehicle():
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
-# Admin Return Stock Receive Route (Gaadi se wapas godown mein stock dalna)
+
 @app.route('/receive_return', methods=['POST'])
 def receive_return():
     if 'user' in session and session.get('role') == 'admin':
         driver_name = request.form['driver_username']
         item_name = request.form['item_name']
         return_qty = int(request.form['return_qty'])
-        
+
         d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item_name).first()
         prod = Product.query.filter_by(name=item_name).first()
-        
-        if d_stock and prod and d_stock.vehicle_stock >= return_qty:
-            d_stock.vehicle_stock -= return_qty  # Driver ki gaadi se hata
-            prod.shop_stock += return_qty         # Wapas agency godown mein jud gaya
+
+        if d_stock and prod and return_qty > 0 and d_stock.vehicle_stock >= return_qty:
+            d_stock.vehicle_stock -= return_qty
+            prod.shop_stock += return_qty
             db.session.commit()
-            
+
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
+
 
 @app.route('/add_driver', methods=['POST'])
 def add_driver():
     if 'user' in session and session.get('role') == 'admin':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
-        route = request.form['route_name']
-        
-        drv = User(username=username, password=password, role='driver', route_name=route)
-        db.session.add(drv)
-        db.session.commit()
+        route = request.form['route_name'].strip()
+
+        if username and password and not User.query.filter_by(username=username).first():
+            drv = User(username=username, password=password, role='driver', route_name=route)
+            db.session.add(drv)
+            db.session.commit()
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
+
 
 @app.route('/record_sale', methods=['POST'])
 def record_sale():
     if 'user' in session and session.get('role') == 'driver':
         driver_name = session['user']
-        counter = request.form['counter_name']
+        selected_counter = request.form.get('saved_counter', '').strip()
+        new_counter = request.form.get('counter_name', '').strip()
+        counter = new_counter if (selected_counter == '__NEW__' or new_counter) else selected_counter
+
         item = request.form['item_name']
         qty = int(request.form['quantity'])
         mode = request.form['payment_mode']
         today_str = datetime.now().strftime('%Y-%m-%d')
-        
+
         d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item).first()
         prod = Product.query.filter_by(name=item).first()
-        
-        if d_stock and prod and d_stock.vehicle_stock >= qty:
+
+        if counter and d_stock and prod and qty > 0 and d_stock.vehicle_stock >= qty:
             d_stock.vehicle_stock -= qty
             total = qty * prod.selling_rate
-            
-            sale = Sale(driver_username=driver_name, counter_name=counter, item_name=item, quantity=qty, total_amount=total, payment_mode=mode, sale_date=today_str)
+
+            sale = Sale(
+                driver_username=driver_name,
+                counter_name=counter,
+                item_name=item,
+                quantity=qty,
+                total_amount=total,
+                payment_mode=mode,
+                sale_date=today_str
+            )
             db.session.add(sale)
             db.session.commit()
-            
+
         return redirect(url_for('driver_dashboard'))
     return redirect(url_for('login'))
+
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
 
 with app.app_context():
     db.create_all()
@@ -239,6 +290,7 @@ with app.app_context():
         admin_user = User(username='admin', password='admin123', role='admin')
         db.session.add(admin_user)
         db.session.commit()
+
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -2,22 +2,24 @@
 <html>
 <head>
     <title>Admin Dashboard - Shiv Shankar Vita Milk Agency</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { font-family: Arial, sans-serif; margin: 10px; background-color: #f4f7f6; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 12px 15px; border-radius: 5px; }
-        .logout-btn { background: #e74c3c; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 14px; }
-        .container { margin-top: 15px; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 10px; background-color: #f4f7f6; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 12px 15px; border-radius: 8px; }
+        .logout-btn { background: #e74c3c; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 14px; }
+        .container { margin-top: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-bottom: 15px; }
         h3 { margin-top: 0; color: #2c3e50; font-size: 18px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; overflow-x: auto; display: block; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; }
         th { background-color: #f2f2f2; }
-        input, select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-        button { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #444; }
+        input, select { width: 100%; padding: 11px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; background: #fafafa; }
+        button { width: 100%; padding: 11px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .btn-blue { background: #2980b9; }
         .btn-orange { background: #d35400; }
-        .driver-box { background: #fdfefe; padding: 12px; border-radius: 5px; margin-bottom: 15px; border: 2px solid #2980b9; }
-        .date-filter { background: #e8f8f5; padding: 10px; border-radius: 5px; border: 1px solid #a3e4d7; margin-bottom: 15px; }
+        .driver-box { background: #fdfefe; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #2980b9; }
+        .date-filter { background: #e8f8f5; padding: 12px; border-radius: 8px; border: 1px solid #a3e4d7; margin-bottom: 15px; }
+        .extra-box { background: #f8f9f9; border: 1px dashed #95a5a6; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -26,9 +28,8 @@
         <a href="/logout" class="logout-btn">Logout</a>
     </div>
 
-    <!-- Date Filter Section -->
     <div class="container date-filter">
-        <h3 style="color: #16a085; margin-bottom: 8px;">📅 Date-wise Sales History</h3>
+        <h3 style="color: #16a085; margin-bottom: 8px;">Date-wise Sales History</h3>
         <form method="GET" action="/admin">
             <label>Select Date:</label>
             <select name="sale_date" onchange="this.form.submit()">
@@ -40,18 +41,38 @@
         <p style="margin: 5px 0 0 0; font-size: 13px; color: #555;">Showing records for date: <b>{{ selected_date }}</b></p>
     </div>
 
-    <!-- Add Product & Item-wise Stock Summary -->
     <div class="container">
-        <h3>Plant Supply & Item-wise Stock Tally</h3>
+        <h3>Rozana Stock Add</h3>
         <form action="/add_product" method="POST">
-            <input type="text" name="name" placeholder="Item Name (Milk, Dahi...)" required>
-            <input type="number" step="0.01" name="purchase_rate" placeholder="Purchase Rate (₹)" required>
-            <input type="number" step="0.01" name="selling_rate" placeholder="Selling Rate (₹)" required>
-            <input type="number" name="shop_stock" placeholder="Godown Stock to Add" required>
-            <button type="submit">Save Product / Add Stock</button>
+            <label>Saved Item Chunein:</label>
+            <select name="saved_item" id="saved_item" onchange="toggleNewItem()">
+                {% if products %}
+                    {% for p in products %}
+                    <option value="{{ p.name }}">{{ p.name }} (Godown: {{ p.shop_stock }} | Sell: ₹{{ p.selling_rate }})</option>
+                    {% endfor %}
+                    <option value="__NEW__">+ Naya Item Jodein</option>
+                {% else %}
+                    <option value="__NEW__" selected>+ Naya Item Jodein</option>
+                {% endif %}
+            </select>
+
+            <div id="new_item_box" class="extra-box" style="display: none;">
+                <label>Naya Item ka Naam:</label>
+                <input type="text" name="name" id="new_item_name" placeholder="Jaise: Milk, Dahi, Paneer, Ghee, Bread">
+
+                <label>Purchase Rate (₹):</label>
+                <input type="number" step="0.01" name="purchase_rate" placeholder="Kharid rate (₹)">
+
+                <label>Selling Rate (₹):</label>
+                <input type="number" step="0.01" name="selling_rate" placeholder="Bechne ka rate (₹)">
+            </div>
+
+            <label>Quantity Add Karein:</label>
+            <input type="number" name="shop_stock" placeholder="Kitni quantity aayi? (e.g. 100)" required>
+            <button type="submit">+ Stock Add Karein</button>
         </form>
 
-        <h4 style="margin-top: 15px; color: #2c3e50;">Item Wise Complete Ledger (For {{ selected_date }}):</h4>
+        <h4 style="margin-top: 18px; color: #2c3e50;">Item Wise Complete Ledger ({{ selected_date }}):</h4>
         <table>
             <tr>
                 <th>Item Name</th>
@@ -78,7 +99,6 @@
         </table>
     </div>
 
-    <!-- Assign Stock to Driver -->
     <div class="container">
         <h3>Load Stock into Driver Vehicle</h3>
         <form action="/load_vehicle" method="POST">
@@ -98,12 +118,11 @@
 
             <label>Quantity to Load:</label>
             <input type="number" name="load_qty" placeholder="Enter Quantity" required>
-            
+
             <button type="submit" class="btn-blue">Assign to Driver Vehicle</button>
         </form>
     </div>
 
-    <!-- Add Driver & Route -->
     <div class="container">
         <h3>Add Driver & Route</h3>
         <form action="/add_driver" method="POST">
@@ -121,14 +140,13 @@
         </table>
     </div>
 
-    <!-- Driver-wise Return Stock & Sales Summary with Receive Action -->
     <div class="container">
-        <h3>Driver-wise Evening Return & Sales Summary (For {{ selected_date }})</h3>
+        <h3>Driver-wise Evening Return & Sales Summary ({{ selected_date }})</h3>
         {% for ds in driver_summaries %}
         <div class="driver-box">
-            <h4 style="margin: 0 0 8px 0; color: #2980b9;">🚚 Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
-            <p style="margin: 3px 0 10px 0;">💵 Cash: <b>₹{{ ds.cash }}</b> | 📱 UPI: <b>₹{{ ds.upi }}</b> | 📒 Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
-            
+            <h4 style="margin: 0 0 8px 0; color: #2980b9;">Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
+            <p style="margin: 3px 0 10px 0;">Cash: <b>₹{{ ds.cash }}</b> | UPI: <b>₹{{ ds.upi }}</b> | Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
+
             <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi):</h5>
             <table>
                 <tr><th>Item</th><th>Remaining Stock in Vehicle</th></tr>
@@ -139,19 +157,18 @@
                 {% endfor %}
             </table>
 
-            <!-- Receive Return Stock Form -->
-            <form action="/receive_return" method="POST" style="margin-top: 10px; background: #fef9e7; padding: 10px; border-radius: 4px; border: 1px solid #f39c12;">
+            <form action="/receive_return" method="POST" style="margin-top: 10px; background: #fef9e7; padding: 10px; border-radius: 6px; border: 1px solid #f39c12;">
                 <input type="hidden" name="driver_username" value="{{ ds.username }}">
                 <h5 style="margin: 0 0 5px 0; color: #b7950b;">Wapsi Maal Godown Mein Jama Karein:</h5>
                 <label style="font-size: 12px;">Select Item:</label>
-                <select name="item_name" required style="padding: 6px; font-size: 13px;">
+                <select name="item_name" required style="padding: 8px; font-size: 15px;">
                     {% for st in ds.stock %}
                     <option value="{{ st.item_name }}">{{ st.item_name }} (Available in Vehicle: {{ st.vehicle_stock }})</option>
                     {% endfor %}
                 </select>
                 <label style="font-size: 12px;">Return Quantity:</label>
-                <input type="number" name="return_qty" placeholder="Enter Return Qty" required style="padding: 6px; font-size: 13px;">
-                <button type="submit" class="btn-orange" style="padding: 8px; font-size: 14px;">Receive Back to Godown</button>
+                <input type="number" name="return_qty" placeholder="Enter Return Qty" required style="padding: 8px; font-size: 15px;">
+                <button type="submit" class="btn-orange" style="padding: 9px; font-size: 15px;">Receive Back to Godown</button>
             </form>
 
             <h5 style="margin: 15px 0 5px 0; color: #d35400;">Counter-wise Sales History:</h5>
@@ -172,5 +189,23 @@
         </div>
         {% endfor %}
     </div>
+
+    <script>
+        function toggleNewItem() {
+            var sel = document.getElementById("saved_item");
+            var box = document.getElementById("new_item_box");
+            var inp = document.getElementById("new_item_name");
+            if (!sel || !box || !inp) return;
+            if (sel.value === "__NEW__") {
+                box.style.display = "block";
+                inp.required = true;
+            } else {
+                box.style.display = "none";
+                inp.required = false;
+                inp.value = "";
+            }
+        }
+        window.onload = toggleNewItem;
+    </script>
 </body>
 </html>
