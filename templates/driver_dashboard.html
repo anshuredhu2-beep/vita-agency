@@ -37,8 +37,12 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="{% if category == 'error' %}alert-error{% else %}alert-success{% endif %}">{{ message }}</div>
-            {% endif %}
+                {% if category == 'error' %}
+                    <div class="alert-error">{{ message }}</div>
+                {% else %}
+                    <div class="alert-success">{{ message }}</div>
+                {% endif %}
+            {% endfor %}
         {% endif %}
     {% endwith %}
 
@@ -54,14 +58,10 @@
         <form action="/record_sale" method="POST">
             <label>Saved Shop / Counter Chunein:</label>
             <select name="saved_counter" id="saved_counter" onchange="toggleNewCounter()">
-                {% if saved_counters %}
-                    {% for c in saved_counters %}
-                    <option value="{{ c }}">{{ c }}</option>
-                    {% endfor %}
-                    <option value="__NEW__">+ Nayi Shop / Counter Likhein</option>
-                {% else %}
-                    <option value="__NEW__" selected>+ Nayi Shop / Counter Likhein</option>
-                {% endif %}
+                {% for c in saved_counters %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+                <option value="__NEW__">+ Nayi Shop / Counter Likhein</option>
             </select>
 
             <div id="new_counter_box" style="display: none;">
