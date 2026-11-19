@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #f4f7f6; padding: 10px; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 12px 15px; border-radius: 8px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #2c3e50; color: white; padding: 12px 15px; border-radius: 8px; gap: 8px; }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .refresh-btn { background: #2980b9; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
         .logout-btn { background: #e74c3c; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 14px; }
         .container { margin-top: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 15px; }
         h3 { margin-top: 0; color: #2c3e50; font-size: 18px; }
@@ -15,21 +17,26 @@
         label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #444; }
         input, select { width: 100%; padding: 12px; margin-bottom: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; background: #fafafa; outline: none; }
         input:focus, select:focus { border-color: #27ae60; background: #fff; }
-        button { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button.submit-btn { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .summary-box { background: #e8f8f5; padding: 12px; border-radius: 8px; border: 1px solid #a3e4d7; margin-bottom: 15px; }
         .hint { font-size: 12px; color: #666; margin-top: -8px; margin-bottom: 12px; display: block; }
+        .sync-note { font-size: 12px; color: #555; margin-top: 6px; }
     </style>
 </head>
 <body>
     <div class="header">
         <h2 style="font-size: 16px; margin: 0;">Driver Panel</h2>
-        <a href="/logout" class="logout-btn">Logout</a>
+        <div class="header-actions">
+            <button type="button" class="refresh-btn" onclick="location.reload()">Refresh</button>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
     </div>
 
     <div class="container summary-box">
         <h3 style="color: #16a085; margin-bottom: 6px; font-size: 16px;">Today's Collection ({{ today_date }})</h3>
         <p style="margin: 4px 0; font-size: 14px;">Cash: <b>₹{{ total_cash }}</b> | UPI: <b>₹{{ total_upi }}</b></p>
         <p style="margin: 4px 0; font-size: 14px;">Udhar: <b style="color: #c0392b;">₹{{ total_udhar }}</b></p>
+        <div class="sync-note">Stock har 10 second mein apne aap sync hota hai (jab aap kuch type na kar rahe hon).</div>
     </div>
 
     <div class="container">
@@ -72,7 +79,7 @@
                 <option value="Udhar">Udhar (Credit)</option>
             </select>
 
-            <button type="submit">Submit Sale</button>
+            <button type="submit" class="submit-btn">Submit Sale</button>
         </form>
     </div>
 
@@ -111,6 +118,7 @@
             var sel = document.getElementById("saved_counter");
             var box = document.getElementById("new_counter_box");
             var inp = document.getElementById("counter_name");
+            if (!sel || !box || !inp) return;
             if (sel.value === "__NEW__") {
                 box.style.display = "block";
                 inp.required = true;
@@ -120,7 +128,30 @@
                 inp.value = "";
             }
         }
-        window.onload = toggleNewCounter;
+
+        function isUserTyping() {
+            var active = document.activeElement;
+            if (!active) return false;
+            var tag = active.tagName.toLowerCase();
+            if (tag === "input" || tag === "select" || tag === "textarea") {
+                return true;
+            }
+            var qtyInput = document.querySelector('input[name="quantity"]');
+            var newShopInput = document.getElementById("counter_name");
+            if ((qtyInput && qtyInput.value.trim() !== "") || (newShopInput && newShopInput.value.trim() !== "")) {
+                return true;
+            }
+            return false;
+        }
+
+        window.onload = function() {
+            toggleNewCounter();
+            setInterval(function() {
+                if (!document.hidden && !isUserTyping()) {
+                    location.reload();
+                }
+            }, 10000);
+        };
     </script>
 </body>
 </html>
