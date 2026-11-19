@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
@@ -14,7 +14,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # 'admin' or 'driver'
+    role = db.Column(db.String(20), nullable=False)
     route_name = db.Column(db.String(80), nullable=True)
 
 
@@ -59,7 +59,8 @@ def login():
             session['user'] = user.username
             session['role'] = user.role
             return redirect(url_for('admin_dashboard') if user.role == 'admin' else url_for('driver_dashboard'))
-        return "Invalid Username or Password", 401
+        flash("Galat Username ya Password!", "error")
+        return redirect(url_for('login'))
     return render_template('login.html')
 
 
@@ -67,7 +68,8 @@ def login():
 def admin_dashboard():
     if 'user' in session and session.get('role') == 'admin':
         products = Product.query.order_by(Product.name.asc()).all()
-        drivers = User.query.filter_by(role='driver').all()
+        product_map = {p.name: p for p in products}
+        drivers = User.query.filter_by(role='driver').order_by(User.username.asc()).all()
         driver_stocks = DriverStock.query.all()
 
         today_str = datetime.now().strftime('%Y-%m-%d')
@@ -80,11 +82,23 @@ def admin_dashboard():
             dates_list.append(today_str)
         dates_list.sort(reverse=True)
 
+        total_cash = round(sum(s.total_amount for s in sales if s.payment_mode == 'Cash'), 2)
+        total_upi = round(sum(s.total_amount for s in sales if s.payment_mode == 'UPI'), 2)
+        total_udhar = round(sum(s.total_amount for s in sales if s.payment_mode == 'Udhar'), 2)
+        total_revenue = round(sum(s.total_amount for s in sales), 2)
+
+        est_profit = 0.0
+        for s in sales:
+            p = product_map.get(s.item_name)
+            p_rate = p.purchase_rate if p else 0.0
+            est_profit += (s.total_amount - (s.quantity * p_rate))
+        est_profit = round(est_profit, 2)
+
         item_summaries = []
         for p in products:
             item_sales = [s for s in sales if s.item_name == p.name]
             total_sold_qty = sum(s.quantity for s in item_sales)
-            total_revenue = sum(s.total_amount for s in item_sales)
+            item_rev = round(sum(s.total_amount for s in item_sales), 2)
             total_vehicle_qty = sum(ds.vehicle_stock for ds in driver_stocks if ds.item_name == p.name)
 
             item_summaries.append({
@@ -94,16 +108,16 @@ def admin_dashboard():
                 'godown_stock': p.shop_stock,
                 'vehicle_stock': total_vehicle_qty,
                 'sold_qty': total_sold_qty,
-                'revenue': total_revenue
+                'revenue': item_rev
             })
 
         driver_summaries = []
         for d in drivers:
             d_sales = [s for s in sales if s.driver_username == d.username]
-            d_stock = [ds for ds in driver_stocks if ds.driver_username == d.username]
-            d_cash = sum(s.total_amount for s in d_sales if s.payment_mode == 'Cash')
-            d_upi = sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI')
-            d_udhar = sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar')
+            d_stock = [ds for ds in driver_stocks if ds.driver_username == d.username and ds.vehicle_stock > 0]
+            d_cash = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'Cash'), 2)
+            d_upi = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI'), 2)
+            d_udhar = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar'), 2)
 
             driver_summaries.append({
                 'username': d.username,
@@ -122,7 +136,12 @@ def admin_dashboard():
             item_summaries=item_summaries,
             driver_summaries=driver_summaries,
             selected_date=selected_date,
-            dates_list=dates_list
+            dates_list=dates_list,
+            total_cash=total_cash,
+            total_upi=total_upi,
+            total_udhar=total_udhar,
+            total_revenue=total_revenue,
+            est_profit=est_profit
         )
     return redirect(url_for('login'))
 
@@ -139,9 +158,9 @@ def driver_dashboard():
         saved_counters_rows = db.session.query(Sale.counter_name).filter_by(driver_username=driver_name).distinct().all()
         saved_counters = sorted({c[0].strip() for c in saved_counters_rows if c[0] and c[0].strip()})
 
-        total_cash = sum(s.total_amount for s in sales if s.payment_mode == 'Cash')
-        total_upi = sum(s.total_amount for s in sales if s.payment_mode == 'UPI')
-        total_udhar = sum(s.total_amount for s in sales if s.payment_mode == 'Udhar')
+        total_cash = round(sum(s.total_amount for s in sales if s.payment_mode == 'Cash'), 2)
+        total_upi = round(sum(s.total_amount for s in sales if s.payment_mode == 'UPI'), 2)
+        total_udhar = round(sum(s.total_amount for s in sales if s.payment_mode == 'Udhar'), 2)
 
         return render_template(
             'driver_dashboard.html',
@@ -162,7 +181,7 @@ def add_product():
         selected_item = request.form.get('saved_item', '').strip()
         new_item = request.form.get('name', '').strip()
         name = new_item if (selected_item == '__NEW__' or new_item) else selected_item
-        shop_stock = int(request.form['shop_stock'])
+        shop_stock = int(request.form.get('shop_stock') or 0)
 
         if name:
             prod = Product.query.filter(db.func.lower(Product.name) == name.lower()).first()
@@ -175,11 +194,13 @@ def add_product():
                 if s_rate_raw:
                     prod.selling_rate = float(s_rate_raw)
                 prod.shop_stock += shop_stock
+                flash(f"{prod.name} ka stock +{shop_stock} add ho gaya (Godown: {prod.shop_stock}).", "success")
             else:
                 p_rate = float(p_rate_raw) if p_rate_raw else 0.0
                 s_rate = float(s_rate_raw) if s_rate_raw else 0.0
                 prod = Product(name=name, purchase_rate=p_rate, selling_rate=s_rate, shop_stock=shop_stock)
                 db.session.add(prod)
+                flash(f"Naya item '{name}' save ho gaya.", "success")
 
             db.session.commit()
         return redirect(url_for('admin_dashboard'))
@@ -191,7 +212,7 @@ def load_vehicle():
     if 'user' in session and session.get('role') == 'admin':
         driver_name = request.form['driver_username']
         item_name = request.form['item_name']
-        load_qty = int(request.form['load_qty'])
+        load_qty = int(request.form.get('load_qty') or 0)
 
         prod = Product.query.filter_by(name=item_name).first()
         if prod and load_qty > 0 and prod.shop_stock >= load_qty:
@@ -204,6 +225,9 @@ def load_vehicle():
                 d_stock = DriverStock(driver_username=driver_name, item_name=item_name, vehicle_stock=load_qty)
                 db.session.add(d_stock)
             db.session.commit()
+            flash(f"{load_qty} {item_name} driver '{driver_name}' ki gaadi mein load ho gaya.", "success")
+        else:
+            flash("Godown mein itna stock maujood nahi hai ya quantity galat hai.", "error")
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
@@ -213,7 +237,7 @@ def receive_return():
     if 'user' in session and session.get('role') == 'admin':
         driver_name = request.form['driver_username']
         item_name = request.form['item_name']
-        return_qty = int(request.form['return_qty'])
+        return_qty = int(request.form.get('return_qty') or 0)
 
         d_stock = DriverStock.query.filter_by(driver_username=driver_name, item_name=item_name).first()
         prod = Product.query.filter_by(name=item_name).first()
@@ -222,6 +246,9 @@ def receive_return():
             d_stock.vehicle_stock -= return_qty
             prod.shop_stock += return_qty
             db.session.commit()
+            flash(f"{return_qty} {item_name} wapsi godown mein jama ho gaya.", "success")
+        else:
+            flash("Gaadi mein itna return stock nahi hai ya quantity galat hai.", "error")
 
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
@@ -238,6 +265,9 @@ def add_driver():
             drv = User(username=username, password=password, role='driver', route_name=route)
             db.session.add(drv)
             db.session.commit()
+            flash(f"Driver '{username}' ({route}) ban gaya.", "success")
+        else:
+            flash("Driver username pehle se maujood hai ya details adhoori hain.", "error")
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
@@ -250,8 +280,8 @@ def record_sale():
         new_counter = request.form.get('counter_name', '').strip()
         counter = new_counter if (selected_counter == '__NEW__' or new_counter) else selected_counter
 
-        item = request.form['item_name']
-        qty = int(request.form['quantity'])
+        item = request.form.get('item_name', '').strip()
+        qty = int(request.form.get('quantity') or 0)
         mode = request.form['payment_mode']
         today_str = datetime.now().strftime('%Y-%m-%d')
 
@@ -260,7 +290,7 @@ def record_sale():
 
         if counter and d_stock and prod and qty > 0 and d_stock.vehicle_stock >= qty:
             d_stock.vehicle_stock -= qty
-            total = qty * prod.selling_rate
+            total = round(qty * prod.selling_rate, 2)
 
             sale = Sale(
                 driver_username=driver_name,
@@ -273,6 +303,9 @@ def record_sale():
             )
             db.session.add(sale)
             db.session.commit()
+            flash(f"Sale save ho gayi: {counter} — {qty} {item} (₹{total}, {mode}).", "success")
+        else:
+            flash("Sale save nahi hui: Gaadi ka stock check karein ya shop/quantity sahi bharein.", "error")
 
         return redirect(url_for('driver_dashboard'))
     return redirect(url_for('login'))
