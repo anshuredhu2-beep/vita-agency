@@ -114,7 +114,31 @@ def admin_dashboard():
         driver_summaries = []
         for d in drivers:
             d_sales = [s for s in sales if s.driver_username == d.username]
-            d_stock = [ds for ds in driver_stocks if ds.driver_username == d.username and ds.vehicle_stock > 0]
+            raw_stock = [ds for ds in driver_stocks if ds.driver_username == d.username and ds.vehicle_stock > 0]
+
+            d_stock = []
+            total_return_pur_val = 0.0
+            total_return_sell_val = 0.0
+
+            for ds in raw_stock:
+                p = product_map.get(ds.item_name)
+                p_rate = p.purchase_rate if p else 0.0
+                s_rate = p.selling_rate if p else 0.0
+                ret_pur = round(ds.vehicle_stock * p_rate, 2)
+                ret_sell = round(ds.vehicle_stock * s_rate, 2)
+
+                total_return_pur_val += ret_pur
+                total_return_sell_val += ret_sell
+
+                d_stock.append({
+                    'item_name': ds.item_name,
+                    'vehicle_stock': ds.vehicle_stock,
+                    'purchase_rate': p_rate,
+                    'selling_rate': s_rate,
+                    'return_pur_amount': ret_pur,
+                    'return_sell_amount': ret_sell
+                })
+
             d_cash = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'Cash'), 2)
             d_upi = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI'), 2)
             d_udhar = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar'), 2)
@@ -126,7 +150,9 @@ def admin_dashboard():
                 'upi': d_upi,
                 'udhar': d_udhar,
                 'sales': d_sales,
-                'stock': d_stock
+                'stock': d_stock,
+                'total_return_pur_val': round(total_return_pur_val, 2),
+                'total_return_sell_val': round(total_return_sell_val, 2)
             })
 
         return render_template(
@@ -245,8 +271,9 @@ def receive_return():
         if d_stock and prod and return_qty > 0 and d_stock.vehicle_stock >= return_qty:
             d_stock.vehicle_stock -= return_qty
             prod.shop_stock += return_qty
+            ret_val = round(return_qty * prod.selling_rate, 2)
             db.session.commit()
-            flash(f"{return_qty} {item_name} wapsi godown mein jama ho gaya.", "success")
+            flash(f"{return_qty} {item_name} (₹{ret_val}) wapsi godown mein jama ho gaya.", "success")
         else:
             flash("Gaadi mein itna return stock nahi hai ya quantity galat hai.", "error")
 

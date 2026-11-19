@@ -29,6 +29,7 @@
         .alert-success { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 600; }
         .alert-error { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 600; }
         .sync-note { font-size: 12px; color: #555; margin-top: 6px; }
+        .return-val-box { background: #eaf4fc; border: 1px solid #aed6f1; padding: 8px 10px; border-radius: 6px; margin-top: 8px; font-size: 13px; color: #1b4f72; }
     </style>
 </head>
 <body>
@@ -189,15 +190,29 @@
             <h4 style="margin: 0 0 8px 0; color: #2980b9;">Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
             <p style="margin: 3px 0 10px 0;">Cash: <b>₹{{ ds.cash }}</b> | UPI: <b>₹{{ ds.upi }}</b> | Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
 
-            <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi):</h5>
+            <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi Maal):</h5>
             <table>
-                <tr><th>Item</th><th>Remaining Stock in Vehicle</th></tr>
+                <tr>
+                    <th>Item</th>
+                    <th>Bacha Stock</th>
+                    <th>Sell Keemat (₹)</th>
+                    <th>Pur. Keemat (₹)</th>
+                </tr>
                 {% for st in ds.stock %}
-                <tr><td>{{ st.item_name }}</td><td><b>{{ st.vehicle_stock }}</b></td></tr>
+                <tr>
+                    <td><b>{{ st.item_name }}</b></td>
+                    <td><b>{{ st.vehicle_stock }}</b></td>
+                    <td style="color: #1b4f72;"><b>₹{{ st.return_sell_amount }}</b></td>
+                    <td style="color: #555;">₹{{ st.return_pur_amount }}</td>
+                </tr>
                 {% else %}
-                <tr><td colspan="2">No stock remaining in vehicle.</td></tr>
+                <tr><td colspan="4">No stock remaining in vehicle.</td></tr>
                 {% endfor %}
             </table>
+
+            <div class="return-val-box">
+                Kul Wapsi Maal Keemat: <b>₹{{ ds.total_return_sell_val }}</b> (Sell Rate) | Kharid Keemat: <b>₹{{ ds.total_return_pur_val }}</b>
+            </div>
 
             <form action="/receive_return" method="POST" style="margin-top: 10px; background: #fef9e7; padding: 10px; border-radius: 6px; border: 1px solid #f39c12;">
                 <input type="hidden" name="driver_username" value="{{ ds.username }}">
@@ -205,7 +220,7 @@
                 <label style="font-size: 12px;">Select Item:</label>
                 <select name="item_name" required style="padding: 8px; font-size: 15px;">
                     {% for st in ds.stock %}
-                    <option value="{{ st.item_name }}">{{ st.item_name }} (Available in Vehicle: {{ st.vehicle_stock }})</option>
+                    <option value="{{ st.item_name }}">{{ st.item_name }} (Bacha: {{ st.vehicle_stock }} | Keemat: ₹{{ st.return_sell_amount }})</option>
                     {% endfor %}
                 </select>
                 <label style="font-size: 12px;">Return Quantity:</label>
