@@ -193,6 +193,7 @@ def admin_dashboard():
         products = Product.query.order_by(Product.name.asc()).all()
         product_map = {p.name: p for p in products}
         drivers = User.query.filter_by(role='driver').order_by(User.username.asc()).all()
+        route_map = {d.username: (d.route_name or '') for d in drivers}
         driver_stocks = DriverStock.query.all()
         all_counters = SavedCounter.query.order_by(SavedCounter.driver_username.asc(), SavedCounter.counter_name.asc()).all()
 
@@ -291,6 +292,7 @@ def admin_dashboard():
             'admin_dashboard.html',
             products=products,
             drivers=drivers,
+            route_map=route_map,
             all_counters=all_counters,
             item_summaries=item_summaries,
             driver_summaries=driver_summaries,
@@ -352,6 +354,24 @@ def add_counter():
             else:
                 flash(f"Counter '{new_name}' pehle se saved hai.", "success")
         return redirect(url_for('driver_dashboard'))
+    if 'user' in session and session.get('role') == 'admin':
+        driver_name = request.form.get('driver_username', '').strip()
+        new_name = request.form.get('counter_name', '').strip()
+        drv = User.query.filter_by(username=driver_name, role='driver').first()
+        if drv and new_name:
+            exists = SavedCounter.query.filter(
+                SavedCounter.driver_username == driver_name,
+                db.func.lower(SavedCounter.counter_name) == new_name.lower()
+            ).first()
+            if not exists:
+                db.session.add(SavedCounter(driver_username=driver_name, counter_name=new_name))
+                db.session.commit()
+                flash(f"Driver '{driver_name}' ({drv.route_name}) ke liye counter '{new_name}' save ho gaya.", "success")
+            else:
+                flash(f"Driver '{driver_name}' ke liye counter '{new_name}' pehle se saved hai.", "success")
+        else:
+            flash("Sahi driver chunein aur counter ka naam bharein.", "error")
+        return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
 

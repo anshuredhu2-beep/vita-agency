@@ -239,12 +239,27 @@
     </div>
 
     <div class="container">
-        <h3>Saved Counters Manage (Rename / Delete)</h3>
+        <h3>Saved Counters Manage (Add / Rename / Delete)</h3>
+        <form action="/add_counter" method="POST" style="background: #eafaf1; padding: 10px; border-radius: 8px; border: 1px solid #a9dfbf; margin-bottom: 12px;">
+            <h4 style="margin: 0 0 8px 0; color: #1e8449;">Naya Counter Kis Driver / Route Ke Liye Save Karna Hai?</h4>
+            <label>Driver / Route Chunein:</label>
+            <select name="driver_username" required>
+                {% for d in drivers %}
+                <option value="{{ d.username }}">{{ d.username }} (Route: {{ d.route_name }})</option>
+                {% else %}
+                <option value="" disabled selected>Pehle Driver ID banayein</option>
+                {% endfor %}
+            </select>
+            <label>Counter / Shop ka Naam:</label>
+            <input type="text" name="counter_name" placeholder="Jaise: Gupta Kirana, Bus Stand Shop" required>
+            <button type="submit" class="action-btn">+ Driver Counter Save Karein</button>
+        </form>
+
         <form action="/rename_counter" method="POST" style="background: #f8f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
             <label>Counter Chunein:</label>
             <select name="counter_id" required>
                 {% for sc in all_counters %}
-                <option value="{{ sc.id }}">{{ sc.counter_name }} (Driver: {{ sc.driver_username }})</option>
+                <option value="{{ sc.id }}">{{ sc.counter_name }} (Driver: {{ sc.driver_username }}{% if route_map.get(sc.driver_username) %} | Route: {{ route_map.get(sc.driver_username) }}{% endif %})</option>
                 {% else %}
                 <option value="" disabled selected>Koi saved counter nahi hai</option>
                 {% endfor %}
@@ -255,11 +270,11 @@
         </form>
 
         <table>
-            <tr><th>Counter Name</th><th>Driver</th><th>Delete</th></tr>
+            <tr><th>Counter Name</th><th>Driver & Route</th><th>Delete</th></tr>
             {% for sc in all_counters %}
             <tr>
                 <td><b>{{ sc.counter_name }}</b></td>
-                <td>{{ sc.driver_username }}</td>
+                <td>{{ sc.driver_username }}{% if route_map.get(sc.driver_username) %} ({{ route_map.get(sc.driver_username) }}){% endif %}</td>
                 <td>
                     <form action="/delete_counter" method="POST" style="margin: 0;" onsubmit="return confirm('Kya aap {{ sc.counter_name }} counter delete karna chahte hain?');">
                         <input type="hidden" name="counter_id" value="{{ sc.id }}">
