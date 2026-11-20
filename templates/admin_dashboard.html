@@ -14,6 +14,7 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; overflow-x: auto; display: block; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; }
         th { background-color: #f2f2f2; }
+        tr.total-row td { background-color: #eaf4fc; font-weight: bold; color: #1b4f72; border-top: 2px solid #5dade2; }
         label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #444; }
         input, select { width: 100%; padding: 11px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; background: #fafafa; }
         button.action-btn { width: 100%; padding: 11px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
@@ -289,23 +290,36 @@
                 {% endif %}
             </div>
 
-            <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi Maal):</h5>
+            <h5 style="margin: 8px 0 5px 0; color: #27ae60;">Wapsi Maal (Bacha Hua Stock & Keemat Table):</h5>
             <table>
                 <tr>
                     <th>Item</th>
                     <th>Bacha Stock</th>
+                    <th>Sell Rate</th>
                     <th>Sell Keemat (₹)</th>
                     <th>Pur. Keemat (₹)</th>
                 </tr>
+                {% set ns = namespace(total_qty=0) %}
                 {% for st in ds.stock %}
+                {% set ns.total_qty = ns.total_qty + st.vehicle_stock %}
                 <tr>
                     <td><b>{{ st.item_name }}</b></td>
                     <td><b>{{ st.vehicle_stock }}</b></td>
+                    <td>₹{{ st.selling_rate }}</td>
                     <td style="color: #1b4f72;"><b>₹{{ st.return_sell_amount }}</b></td>
                     <td style="color: #555;">₹{{ st.return_pur_amount }}</td>
                 </tr>
+                {% if loop.last %}
+                <tr class="total-row">
+                    <td>Kul Wapsi</td>
+                    <td>{{ ns.total_qty }}</td>
+                    <td>—</td>
+                    <td>₹{{ ds.total_return_sell_val }}</td>
+                    <td>₹{{ ds.total_return_pur_val }}</td>
+                </tr>
+                {% endif %}
                 {% else %}
-                <tr><td colspan="4">No stock remaining in vehicle.</td></tr>
+                <tr><td colspan="5">Gaadi mein koi wapsi maal bacha nahi hai.</td></tr>
                 {% endfor %}
             </table>
 
