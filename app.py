@@ -6,13 +6,9 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'shivshankar_secret_key')
 
-db_url = os.environ.get('DATABASE_URL')
-if db_url:
-    if db_url.startswith('postgres://'):
-        db_url = db_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vita_agency.db'
+raw_db = os.environ.get('DATABASE_URL')
+db_url = raw_db.replace('postgres://', 'postgresql+psycopg2://', 1).replace('postgresql://', 'postgresql+psycopg2://', 1) if raw_db else None
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///vita_agency.db'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
