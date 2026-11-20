@@ -19,9 +19,11 @@
         button.action-btn { width: 100%; padding: 11px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
         .btn-blue { background: #2980b9; }
         .btn-orange { background: #d35400; }
+        .btn-del { background: #c0392b; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
         .driver-box { background: #fdfefe; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #2980b9; }
         .date-filter { background: #e8f8f5; padding: 12px; border-radius: 8px; border: 1px solid #a3e4d7; margin-bottom: 15px; }
         .extra-box { background: #f8f9f9; border: 1px dashed #95a5a6; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+        .manage-box { background: #f8f9f9; padding: 12px; border-radius: 8px; border: 1px solid #d5dbdb; margin-top: 15px; }
         .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
         .stat-card { background: #ffffff; border: 1px solid #d5dbdb; border-radius: 8px; padding: 10px; }
         .stat-label { font-size: 12px; color: #666; }
@@ -30,6 +32,8 @@
         .alert-error { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 600; }
         .sync-note { font-size: 12px; color: #555; margin-top: 6px; }
         .return-val-box { background: #eaf4fc; border: 1px solid #aed6f1; padding: 8px 10px; border-radius: 6px; margin-top: 8px; font-size: 13px; color: #1b4f72; }
+        .loc-box { background: #f4f8fb; border: 1px solid #d6eaf8; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
+        .map-link { color: #1f618d; font-weight: bold; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -115,6 +119,25 @@
             <button type="submit" class="action-btn">+ Stock Add Karein</button>
         </form>
 
+        <div class="manage-box">
+            <h4 style="margin: 0 0 10px 0; color: #2c3e50;">Saved Item Rate Badlein:</h4>
+            <form action="/update_product_rates" method="POST">
+                <label>Item Chunein:</label>
+                <select name="item_name" required>
+                    {% for p in products %}
+                    <option value="{{ p.name }}">{{ p.name }} (Pur: ₹{{ p.purchase_rate }} | Sell: ₹{{ p.selling_rate }})</option>
+                    {% else %}
+                    <option value="" disabled selected>Koi saved item nahi hai</option>
+                    {% endfor %}
+                </select>
+                <label>Naya Purchase Rate (₹):</label>
+                <input type="number" step="0.01" name="purchase_rate" placeholder="Khali chhodne par purana rate rahega">
+                <label>Naya Selling Rate (₹):</label>
+                <input type="number" step="0.01" name="selling_rate" placeholder="Khali chhodne par purana rate rahega">
+                <button type="submit" class="action-btn btn-blue">Rate Update Karein</button>
+            </form>
+        </div>
+
         <h4 style="margin-top: 18px; color: #2c3e50;">Item Wise Complete Ledger ({{ selected_date }}):</h4>
         <table>
             <tr>
@@ -125,6 +148,7 @@
                 <th>Vehicle Stock</th>
                 <th>Sold Qty</th>
                 <th>Revenue (₹)</th>
+                <th>Delete</th>
             </tr>
             {% for item in item_summaries %}
             <tr>
@@ -135,9 +159,15 @@
                 <td style="color: #e67e22;"><b>{{ item.vehicle_stock }}</b></td>
                 <td style="color: #27ae60;"><b>{{ item.sold_qty }}</b></td>
                 <td><b>₹{{ item.revenue }}</b></td>
+                <td>
+                    <form action="/delete_product" method="POST" style="margin: 0;" onsubmit="return confirm('Kya aap {{ item.name }} ko saved item list se delete karna chahte hain?');">
+                        <input type="hidden" name="item_name" value="{{ item.name }}">
+                        <button type="submit" class="btn-del">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="7">No items added yet.</td></tr>
+            <tr><td colspan="8">No items added yet.</td></tr>
             {% endfor %}
         </table>
     </div>
@@ -175,20 +205,89 @@
             <button type="submit" class="action-btn">Create Driver ID</button>
         </form>
 
+        <h4 style="margin-top: 18px; color: #2c3e50;">Driver Password Badlein:</h4>
+        <form action="/change_driver_password" method="POST" style="background: #f8f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+            <label>Driver Chunein:</label>
+            <select name="driver_username" required>
+                {% for d in drivers %}
+                <option value="{{ d.username }}">{{ d.username }} (Route: {{ d.route_name }})</option>
+                {% endfor %}
+            </select>
+            <label>Naya Password:</label>
+            <input type="text" name="new_password" placeholder="Naya password likhein" required>
+            <button type="submit" class="action-btn btn-blue">Update Password</button>
+        </form>
+
         <table>
-            <tr><th>Driver Username</th><th>Assigned Route</th></tr>
+            <tr><th>Driver Username</th><th>Assigned Route</th><th>Action</th></tr>
             {% for d in drivers %}
-            <tr><td>{{ d.username }}</td><td>{{ d.route_name }}</td></tr>
+            <tr>
+                <td><b>{{ d.username }}</b></td>
+                <td>{{ d.route_name }}</td>
+                <td>
+                    <form action="/delete_driver" method="POST" style="margin: 0;" onsubmit="return confirm('Kya aap {{ d.username }} ki ID delete karna chahte hain?');">
+                        <input type="hidden" name="driver_username" value="{{ d.username }}">
+                        <button type="submit" class="btn-del">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">Koi driver ID nahi bani hai.</td></tr>
             {% endfor %}
         </table>
     </div>
 
     <div class="container">
-        <h3>Driver-wise Evening Return & Sales Summary ({{ selected_date }})</h3>
+        <h3>Saved Counters Manage (Rename / Delete)</h3>
+        <form action="/rename_counter" method="POST" style="background: #f8f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+            <label>Counter Chunein:</label>
+            <select name="counter_id" required>
+                {% for sc in all_counters %}
+                <option value="{{ sc.id }}">{{ sc.counter_name }} (Driver: {{ sc.driver_username }})</option>
+                {% else %}
+                <option value="" disabled selected>Koi saved counter nahi hai</option>
+                {% endfor %}
+            </select>
+            <label>Naya Counter Naam:</label>
+            <input type="text" name="new_counter_name" placeholder="Naya naam likhein" required>
+            <button type="submit" class="action-btn btn-blue">Counter Name Change Karein</button>
+        </form>
+
+        <table>
+            <tr><th>Counter Name</th><th>Driver</th><th>Delete</th></tr>
+            {% for sc in all_counters %}
+            <tr>
+                <td><b>{{ sc.counter_name }}</b></td>
+                <td>{{ sc.driver_username }}</td>
+                <td>
+                    <form action="/delete_counter" method="POST" style="margin: 0;" onsubmit="return confirm('Kya aap {{ sc.counter_name }} counter delete karna chahte hain?');">
+                        <input type="hidden" name="counter_id" value="{{ sc.id }}">
+                        <button type="submit" class="btn-del">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">Koi counter saved nahi hai.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="container">
+        <h3>Driver-wise Evening Return, Location & Sales Summary ({{ selected_date }})</h3>
         {% for ds in driver_summaries %}
         <div class="driver-box">
             <h4 style="margin: 0 0 8px 0; color: #2980b9;">Driver: {{ ds.username }} (Route: {{ ds.route_name }})</h4>
-            <p style="margin: 3px 0 10px 0;">Cash: <b>₹{{ ds.cash }}</b> | UPI: <b>₹{{ ds.upi }}</b> | Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
+            <p style="margin: 3px 0 8px 0;">Cash: <b>₹{{ ds.cash }}</b> | UPI: <b>₹{{ ds.upi }}</b> | Udhar: <b style="color: #c0392b;">₹{{ ds.udhar }}</b></p>
+
+            <div class="loc-box">
+                {% if ds.maps_url %}
+                    <b>Location:</b> <a href="{{ ds.maps_url }}" target="_blank" class="map-link">Google Maps Mein Dekhein</a>
+                    <span style="color: #555;">({{ ds.latitude }}, {{ ds.longitude }})</span><br>
+                    <span style="font-size: 11px; color: #666;">Last Update: {{ ds.location_updated_at }}</span>
+                {% else %}
+                    <b>Location:</b> <span style="color: #777;">Abhi location nahi aayi (Driver panel khulne aur permission milne par aayegi).</span>
+                {% endif %}
+            </div>
 
             <h5 style="margin: 5px 0; color: #27ae60;">Gaadi Mein Bacha Hua Stock (Wapsi Maal):</h5>
             <table>

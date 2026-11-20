@@ -18,9 +18,13 @@
         input, select { width: 100%; padding: 12px; margin-bottom: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; background: #fafafa; outline: none; }
         input:focus, select:focus { border-color: #27ae60; background: #fff; }
         button.submit-btn { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .btn-blue { background: #2980b9; }
+        .btn-del { background: #c0392b; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
         .summary-box { background: #e8f8f5; padding: 12px; border-radius: 8px; border: 1px solid #a3e4d7; margin-bottom: 15px; }
         .hint { font-size: 12px; color: #666; margin-top: -8px; margin-bottom: 12px; display: block; }
         .sync-note { font-size: 12px; color: #555; margin-top: 6px; }
+        .loc-status { font-size: 12px; color: #1b4f72; background: #eaf4fc; border: 1px solid #aed6f1; padding: 6px 8px; border-radius: 6px; margin-top: 8px; }
+        .sub-box { background: #f8f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; margin-top: 12px; }
         .alert-success { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 600; }
         .alert-error { background: #fdecea; color: #c0392b; border: 1px solid #f5b7b1; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 600; }
     </style>
@@ -51,11 +55,12 @@
         <p style="margin: 4px 0; font-size: 14px;">Cash: <b>₹{{ total_cash }}</b> | UPI: <b>₹{{ total_upi }}</b></p>
         <p style="margin: 4px 0; font-size: 14px;">Udhar: <b style="color: #c0392b;">₹{{ total_udhar }}</b></p>
         <div class="sync-note">Stock har 10 second mein apne aap sync hota hai (jab aap kuch type na kar rahe hon).</div>
+        <div id="loc_status" class="loc-status">Location auto-sync chaloo hai...</div>
     </div>
 
     <div class="container">
         <h3>Record Shop Sale</h3>
-        <form action="/record_sale" method="POST">
+        <form action="/record_sale" method="POST" id="sale_form">
             <label>Saved Shop / Counter Chunein:</label>
             <select name="saved_counter" id="saved_counter" onchange="toggleNewCounter()">
                 {% for c in saved_counters %}
@@ -68,7 +73,7 @@
                 <label>Nayi Shop / Counter ka Naam:</label>
                 <input type="text" name="counter_name" id="counter_name" placeholder="Nayi dukan ka naam likhein">
             </div>
-            <span class="hint">Saved shop dropdown se chunein; nayi shop ke liye "+ Nayi Shop" select karein.</span>
+            <span class="hint">Saved shop permanent rehti hai; nayi shop ke liye "+ Nayi Shop" select karein.</span>
 
             <label>Gaadi ka Stock / Item Chunein:</label>
             <select name="item_name" required>
@@ -91,6 +96,49 @@
 
             <button type="submit" class="submit-btn">Submit Sale</button>
         </form>
+
+        <div class="sub-box">
+            <h4 style="margin: 0 0 8px 0; color: #2c3e50;">Naya Counter Permanent Save Karein:</h4>
+            <form action="/add_counter" method="POST">
+                <input type="text" name="counter_name" placeholder="Counter / Shop ka naam likhein" required>
+                <button type="submit" class="submit-btn btn-blue">+ Counter Save Karein</button>
+            </form>
+        </div>
+
+        <div class="sub-box">
+            <h4 style="margin: 0 0 8px 0; color: #2c3e50;">Saved Counter Naam Badlein:</h4>
+            <form action="/rename_counter" method="POST">
+                <label>Purana Counter Chunein:</label>
+                <select name="old_counter_name" required>
+                    {% for c in saved_counters %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% else %}
+                    <option value="" disabled selected>Koi saved counter nahi hai</option>
+                    {% endfor %}
+                </select>
+                <label>Naya Counter Naam:</label>
+                <input type="text" name="new_counter_name" placeholder="Naya naam likhein" required>
+                <button type="submit" class="submit-btn btn-blue">Counter Name Change Karein</button>
+            </form>
+        </div>
+
+        <h4 style="margin-top: 15px; color: #2c3e50;">Saved Counters List:</h4>
+        <table>
+            <tr><th>Counter / Shop Name</th><th>Action</th></tr>
+            {% for c in saved_counters %}
+            <tr>
+                <td><b>{{ c }}</b></td>
+                <td>
+                    <form action="/delete_counter" method="POST" style="margin: 0;" onsubmit="return confirm('Kya aap {{ c }} counter delete karna chahte hain?');">
+                        <input type="hidden" name="counter_name" value="{{ c }}">
+                        <button type="submit" class="btn-del">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2">Koi counter saved nahi hai.</td></tr>
+            {% endfor %}
+        </table>
     </div>
 
     <div class="container">
@@ -146,16 +194,70 @@
             if (tag === "input" || tag === "select" || tag === "textarea") {
                 return true;
             }
-            var qtyInput = document.querySelector('input[name="quantity"]');
-            var newShopInput = document.getElementById("counter_name");
-            if ((qtyInput && qtyInput.value.trim() !== "") || (newShopInput && newShopInput.value.trim() !== "")) {
-                return true;
+            var inputs = document.querySelectorAll("input[type='text'], input[type='number']");
+            for (var i = 0; i < inputs.length; i++) {
+                if (inputs[i].value && inputs[i].value.trim() !== "") {
+                    return true;
+                }
             }
             return false;
         }
 
+        function sendDriverLocation() {
+            var statusEl = document.getElementById("loc_status");
+            if (!navigator.geolocation) {
+                if (statusEl) statusEl.innerText = "Is browser mein location support nahi hai.";
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    var payload = {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude
+                    };
+                    fetch("/update_location", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data && data.ok && statusEl) {
+                            statusEl.innerText = "Location live sync hui (" + data.updated_at + ")";
+                        }
+                    })
+                    .catch(function() {});
+                },
+                function(err) {
+                    if (statusEl) {
+                        if (err.code === 1) {
+                            statusEl.innerText = "Location permission band hai — browser mein Allow karein.";
+                        } else {
+                            statusEl.innerText = "GPS signal ka intezar ho raha hai...";
+                        }
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+            );
+        }
+
         window.onload = function() {
             toggleNewCounter();
+            sendDriverLocation();
+
+            var saleForm = document.getElementById("sale_form");
+            if (saleForm) {
+                saleForm.addEventListener("submit", function() {
+                    sendDriverLocation();
+                });
+            }
+
+            setInterval(function() {
+                if (!document.hidden) {
+                    sendDriverLocation();
+                }
+            }, 45000);
+
             setInterval(function() {
                 if (!document.hidden && !isUserTyping()) {
                     location.reload();

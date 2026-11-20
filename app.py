@@ -1,13 +1,47 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+import os
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'shivshankar_secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vita_agency.db'
+db_url = os.environ.get('DATABASE_URL')
+if db_url:
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vita_agency.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+DEFAULT_PRODUCTS = [
+    ("FCM 130 ml", 7.95, 8.50),
+    ("FCM 400 ml", 27.00, 28.00),
+    ("FCM 1 Ltr", 72.00, 74.00),
+    ("FCM 6 Ltr", 394.00, 408.00),
+    ("DTM 180 ml", 7.60, 8.00),
+    ("DTM 500 ml", 26.00, 27.00),
+    ("DTM 6 Ltr", 277.00, 290.00),
+    ("Paneer 1 Kg", 353.00, 370.00),
+    ("Paneer 200 gm", 72.00, 76.00),
+    ("Dahi Cup", 15.00, 16.00),
+    ("Dahi 180 gm", 8.50, 9.00),
+    ("Dahi 400 gm", 23.00, 26.00),
+    ("Dahi 1 Kg", 45.00, 48.00),
+    ("Dahi 5 Kg", 235.00, 250.00),
+    ("Dahi 15 Kg", 700.00, 750.00),
+    ("Namkeen Lassi", 7.90, 8.50),
+    ("Chach", 10.00, 11.00),
+    ("Kheer", 20.50, 22.00),
+    ("Jaljeera", 6.80, 7.50),
+    ("Ghee 1 Kg", 0.0, 0.0),
+    ("Ghee 2 Kg", 0.0, 0.0),
+    ("Ghee 5 Kg", 0.0, 0.0),
+    ("Ghee 15 Ltr", 0.0, 0.0),
+]
 
 
 class User(db.Model):
@@ -16,6 +50,9 @@ class User(db.Model):
     password = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), nullable=False)
     route_name = db.Column(db.String(80), nullable=True)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    location_updated_at = db.Column(db.String(40), nullable=True)
 
 
 class Product(db.Model):
@@ -33,6 +70,12 @@ class DriverStock(db.Model):
     vehicle_stock = db.Column(db.Integer, nullable=False, default=0)
 
 
+class SavedCounter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    driver_username = db.Column(db.String(80), nullable=False)
+    counter_name = db.Column(db.String(100), nullable=False)
+
+
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     driver_username = db.Column(db.String(80), nullable=False)
@@ -42,6 +85,64 @@ class Sale(db.Model):
     total_amount = db.Column(db.Float, nullable=False)
     payment_mode = db.Column(db.String(20), nullable=False)
     sale_date = db.Column(db.String(20), nullable=False)
+
+
+def sync_existing_counters():
+    existing_sales = db.session.query(Sale.driver_username, Sale.counter_name).distinct().all()
+    for drv_user, c_name in existing_sales:
+        clean_name = (c_name or '').strip()
+        if drv_user and clean_name:
+            found = SavedCounter.query.filter(
+                SavedCounter.driver_username == drv_user,
+                db.func.lower(SavedCounter.counter_name) == clean_name.lower()
+            ).first()
+            if not found:
+                db.session.add(SavedCounter(driver_username=drv_user, counter_name=clean_name))
+
+
+def ensure_schema_and_seed():
+    try:
+        db.create_all()
+        engine = db.engine
+        dialect = engine.dialect.name
+        if dialect == 'sqlite':
+            cols = [row[1] for row in db.session.execute(db.text("PRAGMA table_info(user)")).fetchall()]
+            if 'latitude' not in cols:
+                db.session.execute(db.text("ALTER TABLE user ADD COLUMN latitude FLOAT"))
+            if 'longitude' not in cols:
+                db.session.execute(db.text("ALTER TABLE user ADD COLUMN longitude FLOAT"))
+            if 'location_updated_at' not in cols:
+                db.session.execute(db.text("ALTER TABLE user ADD COLUMN location_updated_at VARCHAR(40)"))
+            db.session.commit()
+        elif dialect == 'postgresql':
+            db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION'))
+            db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION'))
+            db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS location_updated_at VARCHAR(40)'))
+            db.session.commit()
+
+        if not User.query.filter_by(username='admin').first():
+            admin_user = User(username='admin', password='admin123', role='admin')
+            db.session.add(admin_user)
+
+        for name, p_rate, s_rate in DEFAULT_PRODUCTS:
+            existing = Product.query.filter(db.func.lower(Product.name) == name.lower()).first()
+            if not existing:
+                db.session.add(Product(
+                    name=name,
+                    purchase_rate=p_rate,
+                    selling_rate=s_rate,
+                    shop_stock=0
+                ))
+            else:
+                if existing.purchase_rate == 0.0 and p_rate > 0.0:
+                    existing.purchase_rate = p_rate
+                if existing.selling_rate == 0.0 and s_rate > 0.0:
+                    existing.selling_rate = s_rate
+
+        sync_existing_counters()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 @app.route('/')
@@ -64,6 +165,28 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/update_location', methods=['POST'])
+def update_location():
+    if 'user' in session and session.get('role') == 'driver':
+        data = request.get_json(silent=True) or {}
+        lat = data.get('latitude')
+        lng = data.get('longitude')
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+
+        drv = User.query.filter_by(username=session['user'], role='driver').first()
+        if drv:
+            drv.latitude = lat_f
+            drv.longitude = lng_f
+            drv.location_updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            db.session.commit()
+            return jsonify({'ok': True, 'updated_at': drv.location_updated_at})
+    return jsonify({'ok': False}), 401
+
+
 @app.route('/admin')
 def admin_dashboard():
     if 'user' in session and session.get('role') == 'admin':
@@ -71,6 +194,7 @@ def admin_dashboard():
         product_map = {p.name: p for p in products}
         drivers = User.query.filter_by(role='driver').order_by(User.username.asc()).all()
         driver_stocks = DriverStock.query.all()
+        all_counters = SavedCounter.query.order_by(SavedCounter.driver_username.asc(), SavedCounter.counter_name.asc()).all()
 
         today_str = datetime.now().strftime('%Y-%m-%d')
         selected_date = request.args.get('sale_date', today_str)
@@ -143,9 +267,17 @@ def admin_dashboard():
             d_upi = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'UPI'), 2)
             d_udhar = round(sum(s.total_amount for s in d_sales if s.payment_mode == 'Udhar'), 2)
 
+            maps_url = None
+            if d.latitude is not None and d.longitude is not None:
+                maps_url = f"https://www.google.com/maps?q={d.latitude},{d.longitude}"
+
             driver_summaries.append({
                 'username': d.username,
                 'route_name': d.route_name,
+                'latitude': d.latitude,
+                'longitude': d.longitude,
+                'location_updated_at': d.location_updated_at,
+                'maps_url': maps_url,
                 'cash': d_cash,
                 'upi': d_upi,
                 'udhar': d_udhar,
@@ -159,6 +291,7 @@ def admin_dashboard():
             'admin_dashboard.html',
             products=products,
             drivers=drivers,
+            all_counters=all_counters,
             item_summaries=item_summaries,
             driver_summaries=driver_summaries,
             selected_date=selected_date,
@@ -181,8 +314,8 @@ def driver_dashboard():
         today_str = datetime.now().strftime('%Y-%m-%d')
         sales = Sale.query.filter_by(driver_username=driver_name, sale_date=today_str).all()
 
-        saved_counters_rows = db.session.query(Sale.counter_name).filter_by(driver_username=driver_name).distinct().all()
-        saved_counters = sorted({c[0].strip() for c in saved_counters_rows if c[0] and c[0].strip()})
+        saved_counter_objs = SavedCounter.query.filter_by(driver_username=driver_name).order_by(SavedCounter.counter_name.asc()).all()
+        saved_counters = [sc.counter_name for sc in saved_counter_objs]
 
         total_cash = round(sum(s.total_amount for s in sales if s.payment_mode == 'Cash'), 2)
         total_upi = round(sum(s.total_amount for s in sales if s.payment_mode == 'UPI'), 2)
@@ -193,11 +326,83 @@ def driver_dashboard():
             driver_stocks=driver_stocks,
             sales=sales,
             saved_counters=saved_counters,
+            saved_counter_objs=saved_counter_objs,
             today_date=today_str,
             total_cash=total_cash,
             total_upi=total_upi,
             total_udhar=total_udhar
         )
+    return redirect(url_for('login'))
+
+
+@app.route('/add_counter', methods=['POST'])
+def add_counter():
+    if 'user' in session and session.get('role') == 'driver':
+        driver_name = session['user']
+        new_name = request.form.get('counter_name', '').strip()
+        if new_name:
+            exists = SavedCounter.query.filter(
+                SavedCounter.driver_username == driver_name,
+                db.func.lower(SavedCounter.counter_name) == new_name.lower()
+            ).first()
+            if not exists:
+                db.session.add(SavedCounter(driver_username=driver_name, counter_name=new_name))
+                db.session.commit()
+                flash(f"Counter '{new_name}' permanent save ho gaya.", "success")
+            else:
+                flash(f"Counter '{new_name}' pehle se saved hai.", "success")
+        return redirect(url_for('driver_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/rename_counter', methods=['POST'])
+def rename_counter():
+    if 'user' in session and session.get('role') == 'driver':
+        driver_name = session['user']
+        old_name = request.form.get('old_counter_name', '').strip()
+        new_name = request.form.get('new_counter_name', '').strip()
+        if old_name and new_name:
+            sc = SavedCounter.query.filter_by(driver_username=driver_name, counter_name=old_name).first()
+            if sc:
+                sc.counter_name = new_name
+                Sale.query.filter_by(driver_username=driver_name, counter_name=old_name).update({'counter_name': new_name})
+                db.session.commit()
+                flash(f"Counter '{old_name}' ka naam badal kar '{new_name}' ho gaya.", "success")
+        return redirect(url_for('driver_dashboard'))
+    if 'user' in session and session.get('role') == 'admin':
+        counter_id = request.form.get('counter_id')
+        new_name = request.form.get('new_counter_name', '').strip()
+        sc = SavedCounter.query.get(counter_id) if counter_id else None
+        if sc and new_name:
+            old_name = sc.counter_name
+            sc.counter_name = new_name
+            Sale.query.filter_by(driver_username=sc.driver_username, counter_name=old_name).update({'counter_name': new_name})
+            db.session.commit()
+            flash(f"Counter '{old_name}' ka naam '{new_name}' ho gaya.", "success")
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/delete_counter', methods=['POST'])
+def delete_counter():
+    if 'user' in session and session.get('role') == 'driver':
+        driver_name = session['user']
+        c_name = request.form.get('counter_name', '').strip()
+        sc = SavedCounter.query.filter_by(driver_username=driver_name, counter_name=c_name).first()
+        if sc:
+            db.session.delete(sc)
+            db.session.commit()
+            flash(f"Counter '{c_name}' list se delete ho gaya.", "success")
+        return redirect(url_for('driver_dashboard'))
+    if 'user' in session and session.get('role') == 'admin':
+        counter_id = request.form.get('counter_id')
+        sc = SavedCounter.query.get(counter_id) if counter_id else None
+        if sc:
+            cname = sc.counter_name
+            db.session.delete(sc)
+            db.session.commit()
+            flash(f"Counter '{cname}' delete ho gaya.", "success")
+        return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
 
@@ -229,6 +434,50 @@ def add_product():
                 flash(f"Naya item '{name}' save ho gaya.", "success")
 
             db.session.commit()
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/update_product_rates', methods=['POST'])
+def update_product_rates():
+    if 'user' in session and session.get('role') == 'admin':
+        item_name = request.form.get('item_name', '').strip()
+        p_rate_raw = request.form.get('purchase_rate', '').strip()
+        s_rate_raw = request.form.get('selling_rate', '').strip()
+
+        prod = Product.query.filter_by(name=item_name).first()
+        if prod:
+            updated = False
+            if p_rate_raw != '':
+                prod.purchase_rate = float(p_rate_raw)
+                updated = True
+            if s_rate_raw != '':
+                prod.selling_rate = float(s_rate_raw)
+                updated = True
+
+            if updated:
+                db.session.commit()
+                flash(f"'{prod.name}' ke rates update ho gaye (Pur: ₹{prod.purchase_rate} | Sell: ₹{prod.selling_rate}).", "success")
+            else:
+                flash("Kam se kam ek rate (Purchase ya Selling) bharein.", "error")
+        else:
+            flash("Saved item nahi mila.", "error")
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/delete_product', methods=['POST'])
+def delete_product():
+    if 'user' in session and session.get('role') == 'admin':
+        item_name = request.form.get('item_name', '').strip()
+        prod = Product.query.filter_by(name=item_name).first()
+        if prod:
+            DriverStock.query.filter_by(item_name=prod.name).delete()
+            db.session.delete(prod)
+            db.session.commit()
+            flash(f"Item '{prod.name}' saved list se delete ho gaya.", "success")
+        else:
+            flash("Item nahi mila.", "error")
         return redirect(url_for('admin_dashboard'))
     return redirect(url_for('login'))
 
@@ -299,6 +548,40 @@ def add_driver():
     return redirect(url_for('login'))
 
 
+@app.route('/change_driver_password', methods=['POST'])
+def change_driver_password():
+    if 'user' in session and session.get('role') == 'admin':
+        username = request.form.get('driver_username', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+
+        drv = User.query.filter_by(username=username, role='driver').first()
+        if drv and new_password:
+            drv.password = new_password
+            db.session.commit()
+            flash(f"Driver '{username}' ka password update ho gaya.", "success")
+        else:
+            flash("Sahi driver chunein aur naya password bharein.", "error")
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/delete_driver', methods=['POST'])
+def delete_driver():
+    if 'user' in session and session.get('role') == 'admin':
+        username = request.form.get('driver_username', '').strip()
+        drv = User.query.filter_by(username=username, role='driver').first()
+        if drv:
+            DriverStock.query.filter_by(driver_username=username).delete()
+            SavedCounter.query.filter_by(driver_username=username).delete()
+            db.session.delete(drv)
+            db.session.commit()
+            flash(f"Driver ID '{username}' delete ho gayi.", "success")
+        else:
+            flash("Driver ID nahi mili.", "error")
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
 @app.route('/record_sale', methods=['POST'])
 def record_sale():
     if 'user' in session and session.get('role') == 'driver':
@@ -316,6 +599,13 @@ def record_sale():
         prod = Product.query.filter_by(name=item).first()
 
         if counter and d_stock and prod and qty > 0 and d_stock.vehicle_stock >= qty:
+            exists = SavedCounter.query.filter(
+                SavedCounter.driver_username == driver_name,
+                db.func.lower(SavedCounter.counter_name) == counter.lower()
+            ).first()
+            if not exists:
+                db.session.add(SavedCounter(driver_username=driver_name, counter_name=counter))
+
             d_stock.vehicle_stock -= qty
             total = round(qty * prod.selling_rate, 2)
 
@@ -345,11 +635,7 @@ def logout():
 
 
 with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username='admin').first():
-        admin_user = User(username='admin', password='admin123', role='admin')
-        db.session.add(admin_user)
-        db.session.commit()
+    ensure_schema_and_seed()
 
 
 if __name__ == '__main__':
