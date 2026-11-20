@@ -35,6 +35,7 @@
         .return-val-box { background: #eaf4fc; border: 1px solid #aed6f1; padding: 8px 10px; border-radius: 6px; margin-top: 8px; font-size: 13px; color: #1b4f72; }
         .loc-box { background: #f4f8fb; border: 1px solid #d6eaf8; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; }
         .map-link { color: #1f618d; font-weight: bold; text-decoration: underline; }
+        .history-list { margin: 6px 0 0 0; padding-left: 18px; font-size: 12px; color: #34495e; }
     </style>
 </head>
 <body>
@@ -119,6 +120,23 @@
             <input type="number" name="shop_stock" placeholder="Kitni quantity aayi? (e.g. 100)" required>
             <button type="submit" class="action-btn">+ Stock Add Karein</button>
         </form>
+
+        <div class="manage-box">
+            <h4 style="margin: 0 0 10px 0; color: #2c3e50;">Godown Stock Seedha Edit / Set Karein:</h4>
+            <form action="/set_godown_stock" method="POST">
+                <label>Item Chunein:</label>
+                <select name="item_name" required>
+                    {% for p in products %}
+                    <option value="{{ p.name }}">{{ p.name }} (Abhi Godown: {{ p.shop_stock }})</option>
+                    {% else %}
+                    <option value="" disabled selected>Koi saved item nahi hai</option>
+                    {% endfor %}
+                </select>
+                <label>Naya Godown Stock (Exact Quantity):</label>
+                <input type="number" min="0" name="new_godown_stock" placeholder="Jaise: 50" required>
+                <button type="submit" class="action-btn btn-orange">Godown Stock Set Karein</button>
+            </form>
+        </div>
 
         <div class="manage-box">
             <h4 style="margin: 0 0 10px 0; color: #2c3e50;">Saved Item Rate Badlein:</h4>
@@ -297,11 +315,23 @@
 
             <div class="loc-box">
                 {% if ds.maps_url %}
-                    <b>Location:</b> <a href="{{ ds.maps_url }}" target="_blank" class="map-link">Google Maps Mein Dekhein</a>
+                    <b>Latest Location:</b> <a href="{{ ds.maps_url }}" target="_blank" class="map-link">Google Maps Mein Dekhein</a>
                     <span style="color: #555;">({{ ds.latitude }}, {{ ds.longitude }})</span><br>
                     <span style="font-size: 11px; color: #666;">Last Update: {{ ds.location_updated_at }}</span>
                 {% else %}
-                    <b>Location:</b> <span style="color: #777;">Abhi location nahi aayi (Driver panel khulne aur permission milne par aayegi).</span>
+                    <b>Latest Location:</b> <span style="color: #777;">Abhi location nahi aayi (Driver panel khulne aur permission milne par aayegi).</span>
+                {% endif %}
+
+                {% if ds.loc_history %}
+                    <div style="margin-top: 8px; font-weight: 600; color: #1b4f72;">Aaj Ki Location History ({{ selected_date }}):</div>
+                    <ul class="history-list">
+                        {% for lg in ds.loc_history %}
+                        <li>
+                            {{ lg.recorded_at }} — <a href="{{ lg.maps_url }}" target="_blank" class="map-link">Map</a>
+                            <span style="color: #666;">({{ lg.latitude }}, {{ lg.longitude }})</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
                 {% endif %}
             </div>
 

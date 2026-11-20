@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = 'shivshankar_secret_key'
+app.secret_key = os.environ.get('SECRET_KEY', 'shivshankar_secret_key')
 
 db_url = os.environ.get('DATABASE_URL')
 if db_url:
@@ -53,6 +53,15 @@ class User(db.Model):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     location_updated_at = db.Column(db.String(40), nullable=True)
+
+
+class LocationLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    driver_username = db.Column(db.String(80), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    recorded_date = db.Column(db.String(20), nullable=False)
+    recorded_at = db.Column(db.String(40), nullable=False)
 
 
 class Product(db.Model):
@@ -179,9 +188,36 @@ def update_location():
 
         drv = User.query.filter_by(username=session['user'], role='driver').first()
         if drv:
+            now_dt = datetime.now()
+            now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+            today_str = now_dt.strftime('%Y-%m-%d')
+
             drv.latitude = lat_f
             drv.longitude = lng_f
-            drv.location_updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            drv.location_updated_at = now_str
+
+            last_log = (
+                LocationLog.query
+                .filter_by(driver_username=drv.username, recorded_date=today_str)
+                .order_by(LocationLog.id.desc())
+                .first()
+            )
+            should_log = True
+            if last_log:
+                moved = abs(last_log.latitude - lat_f) >= 0.00015 or abs(last_log.longitude - lng_f) >= 0.00015
+                same_ts = (last_log.recorded_at == now_str)
+                if same_ts or (not moved and last_log.recorded_at[:16] == now_str[:16]):
+                    should_log = False
+
+            if should_log:
+                db.session.add(LocationLog(
+                    driver_username=drv.username,
+                    latitude=lat_f,
+                    longitude=lng_f,
+                    recorded_date=today_str,
+                    recorded_at=now_str
+                ))
+
             db.session.commit()
             return jsonify({'ok': True, 'updated_at': drv.location_updated_at})
     return jsonify({'ok': False}), 401
@@ -272,6 +308,23 @@ def admin_dashboard():
             if d.latitude is not None and d.longitude is not None:
                 maps_url = f"https://www.google.com/maps?q={d.latitude},{d.longitude}"
 
+            raw_logs = (
+                LocationLog.query
+                .filter_by(driver_username=d.username, recorded_date=selected_date)
+                .order_by(LocationLog.id.desc())
+                .limit(12)
+                .all()
+            )
+            loc_history = [
+                {
+                    'latitude': lg.latitude,
+                    'longitude': lg.longitude,
+                    'recorded_at': lg.recorded_at,
+                    'maps_url': f"https://www.google.com/maps?q={lg.latitude},{lg.longitude}"
+                }
+                for lg in raw_logs
+            ]
+
             driver_summaries.append({
                 'username': d.username,
                 'route_name': d.route_name,
@@ -279,6 +332,7 @@ def admin_dashboard():
                 'longitude': d.longitude,
                 'location_updated_at': d.location_updated_at,
                 'maps_url': maps_url,
+                'loc_history': loc_history,
                 'cash': d_cash,
                 'upi': d_upi,
                 'udhar': d_udhar,
@@ -458,6 +512,27 @@ def add_product():
     return redirect(url_for('login'))
 
 
+@app.route('/set_godown_stock', methods=['POST'])
+def set_godown_stock():
+    if 'user' in session and session.get('role') == 'admin':
+        item_name = request.form.get('item_name', '').strip()
+        new_stock_raw = request.form.get('new_godown_stock', '').strip()
+        prod = Product.query.filter_by(name=item_name).first()
+        try:
+            new_stock = int(new_stock_raw)
+        except ValueError:
+            new_stock = -1
+
+        if prod and new_stock >= 0:
+            prod.shop_stock = new_stock
+            db.session.commit()
+            flash(f"'{prod.name}' ka godown stock {new_stock} set ho gaya.", "success")
+        else:
+            flash("Sahi item chunein aur 0 ya usse zyada stock quantity likhein.", "error")
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('login'))
+
+
 @app.route('/update_product_rates', methods=['POST'])
 def update_product_rates():
     if 'user' in session and session.get('role') == 'admin':
@@ -593,6 +668,7 @@ def delete_driver():
         if drv:
             DriverStock.query.filter_by(driver_username=username).delete()
             SavedCounter.query.filter_by(driver_username=username).delete()
+            LocationLog.query.filter_by(driver_username=username).delete()
             db.session.delete(drv)
             db.session.commit()
             flash(f"Driver ID '{username}' delete ho gayi.", "success")
